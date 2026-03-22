@@ -397,4 +397,26 @@ def poisci_omejitve_predpisovanja(query: str) -> dict:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    import os
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    host = os.environ.get("MCP_HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8000"))
+
+    if transport in ("streamable-http", "sse"):
+        from starlette.applications import Starlette
+        from starlette.responses import JSONResponse
+        from starlette.routing import Route, Mount
+
+        async def _health(request):
+            return JSONResponse({"status": "ok"})
+
+        mcp_app = mcp.http_app(transport=transport)
+        app = Starlette(routes=[
+            Route("/health", _health),
+            Mount("/", app=mcp_app),
+        ])
+
+        import uvicorn
+        uvicorn.run(app, host=host, port=port)
+    else:
+        mcp.run()

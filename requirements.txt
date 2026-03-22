@@ -1,0 +1,12 @@
+fastmcp==3.1.1
+chromadb==1.5.5
+sentence-transformers==5.3.0
+requests==2.32.5
+beautifulsoup4==4.14.3
+scikit-learn==1.8.0
+python-dotenv==1.2.2
+uvicorn==0.42.0
+notion-client==3.0.0
+starlette==0.52.1
+PyMuPDF==1.27.2
+lxml==6.0.2

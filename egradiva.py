@@ -1,9 +1,10 @@
 """ZZZS e-gradiva semantic search module — ChromaDB + sentence-transformers."""
 
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-CHROMA_DIR = Path(__file__).parent / "data" / "chromadb"
+CHROMA_DIR = Path(os.environ.get("CHROMADB_PATH", Path(__file__).parent / "data" / "chromadb"))
 EMBEDDING_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 COLLECTION_NAME = "zzzs_egradiva"
 

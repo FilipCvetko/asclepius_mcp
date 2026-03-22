@@ -1,0 +1,12 @@
+.git/
+.env
+.DS_Store
+__pycache__/
+*.pyc
+venv/
+cache/
+data/egradiva_files/
+data/egradiva_manifest.json
+data/egradiva_errors.log
+scripts/
+.vscode/
