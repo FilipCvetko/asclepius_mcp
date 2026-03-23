@@ -321,6 +321,58 @@ def preveri_stanje() -> dict:
     return health_check()
 
 
+# ── List capabilities ────────────────────────────────────────────────
+
+_SELF_TOOLS = {"list_capabilities", "seznam_zmoznosti"}
+
+
+def _first_paragraph(text: str | None) -> str:
+    """Return the first paragraph (up to the first blank line) of a docstring."""
+    if not text:
+        return ""
+    lines: list[str] = []
+    for line in text.strip().splitlines():
+        if not line.strip():
+            break
+        lines.append(line.strip())
+    return " ".join(lines)
+
+
+@mcp.tool()
+async def list_capabilities() -> dict:
+    """List all available tools, resources, and prompts on this server.
+
+    Returns a structured overview of every capability the server exposes,
+    with a short description for each. Useful for answering "what can you do?"
+    """
+    tools = [
+        {"name": t.name, "description": _first_paragraph(t.description)}
+        for t in await mcp.list_tools()
+        if t.name not in _SELF_TOOLS
+    ]
+
+    resources = [
+        {"uri": str(r.uri), "name": r.name or "", "description": _first_paragraph(r.description)}
+        for r in await mcp.list_resources()
+    ]
+
+    prompts = [
+        {"name": p.name, "description": _first_paragraph(p.description)}
+        for p in await mcp.list_prompts()
+    ]
+
+    return {"tools": tools, "resources": resources, "prompts": prompts}
+
+
+@mcp.tool()
+def seznam_zmoznosti() -> dict:
+    """Izpiši vse razpoložljive zmožnosti (orodja, vire, pozive) strežnika.
+
+    Slovensko poimenovanje orodja list_capabilities — deluje enako.
+    """
+    return list_capabilities()
+
+
 # ── Slovenian aliases ──────────────────────────────────────────────────
 
 @mcp.tool()
@@ -411,10 +463,13 @@ if __name__ == "__main__":
             return JSONResponse({"status": "ok"})
 
         mcp_app = mcp.http_app(transport=transport)
-        app = Starlette(routes=[
-            Route("/health", _health),
-            Mount("/", app=mcp_app),
-        ])
+        app = Starlette(
+            routes=[
+                Route("/health", _health),
+                Mount("/", app=mcp_app),
+            ],
+            lifespan=mcp_app.lifespan,
+        )
 
         import uvicorn
         uvicorn.run(app, host=host, port=port)
