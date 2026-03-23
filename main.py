@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from fastmcp import FastMCP
 
 from contacts import initialize_contacts, _get_phone_number
-from drugs import initialize_drugs, _get_drug_info, _get_prescription_limitations
+from drugs import initialize_drugs, _get_drug_info, _get_prescription_limitations, _get_smpc
 from icd10 import initialize_icd10, _get_icd10
 from zzzs import initialize_zzzs, _get_zzzs_limitation, _browse_zzzs_rules, _list_zzzs_categories
 from egradiva import initialize_egradiva, _search_egradiva
@@ -102,6 +102,29 @@ def get_drug_info(query: str) -> dict:
     """
 
     return _get_drug_info(query)
+
+
+@mcp.tool()
+def get_smpc(query: str) -> dict:
+    """Get the SmPC (Summary of Product Characteristics) for a drug.
+
+    Downloads the official SmPC PDF from CBZ and extracts clinically relevant
+    sections: indications, dosing, contraindications, interactions, warnings,
+    pregnancy/lactation, adverse effects, overdose, and pharmacology.
+
+    USE THIS TOOL WHEN:
+    - You need detailed clinical information about a drug
+    - Looking up official indications, dosing, or contraindications
+    - Checking drug interactions or pregnancy safety
+    - Getting pharmacokinetic/pharmacodynamic properties
+    - Needing authoritative drug information beyond basic CBZ listing
+
+    EXAMPLES:
+    • "amoksiklav" → Full SmPC sections for Amoksiklav
+    • "ibuprofen" → Indications, dosing, interactions for Ibuprofen
+    • "pantoprazol" → Detailed clinical data for pantoprazole
+    """
+    return _get_smpc(query)
 
 
 # Register ICD-10 tools
@@ -446,6 +469,16 @@ def poisci_omejitve_predpisovanja(query: str) -> dict:
     Slovensko poimenovanje orodja get_prescription_limitations — deluje enako.
     """
     return _get_prescription_limitations(query)
+
+
+@mcp.tool()
+def poisci_smpc(query: str) -> dict:
+    """Poišči SmPC (Povzetek glavnih značilnosti zdravila) za zdravilo.
+
+    Slovensko poimenovanje orodja get_smpc — deluje enako.
+    Prenese uradni SmPC PDF iz CBZ in izlušči klinično relevantne razdelke.
+    """
+    return _get_smpc(query)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,12 @@
 """Medical drugs module - CBZ API (Centralna baza zdravil)."""
 
+import base64
 import hashlib
+import re
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
+import fitz  # PyMuPDF
 import requests
 from bs4 import BeautifulSoup
 
@@ -35,7 +38,11 @@ def search_drugs_cbz(query: str, max_results: int = 301) -> List[Dict[str, Any]]
         response = requests.get(url, timeout=10)
         response.raise_for_status()
         
+        smpc_map = _extract_smpc_urls(response.text)
         drugs = _parse_cbz_html(response.text, query)
+        # Attach SmPC URLs to matching drugs
+        for drug in drugs:
+            drug["smpc_url"] = smpc_map.get(drug.get("href", ""))
         return drugs
     except Exception as e:
         print(f"Warning: Failed to fetch drugs from CBZ: {e}")
@@ -225,6 +232,209 @@ def _search_drug_urls(query: str, max_results: int = 301) -> List[tuple]:
     except Exception as e:
         print(f"Warning: Failed to search CBZ: {e}")
         return []
+
+
+SMPC_CLINICAL_SECTIONS = {
+    "4.1", "4.2", "4.3", "4.4", "4.5", "4.6", "4.8", "4.9", "5.1", "5.2",
+}
+
+
+def _extract_smpc_urls(html: str) -> Dict[str, str]:
+    """Extract SmPC PDF URLs from CBZ search results HTML.
+
+    Returns a dict mapping drug page URLs to absolute SmPC PDF URLs.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    smpc_map: Dict[str, str] = {}
+
+    for btn in soup.find_all("input", class_="button_smpc"):
+        onclick = btn.get("onclick", "")
+        m = re.search(r"window\.location='([^']+)'", onclick)
+        if not m:
+            continue
+        smpc_path = m.group(1)
+        smpc_url = f"https://www.cbz.si{smpc_path}" if smpc_path.startswith("/") else smpc_path
+
+        # Walk up to find the enclosing element that also contains the drug link
+        parent = btn
+        drug_href = None
+        for _ in range(10):
+            parent = parent.parent
+            if parent is None:
+                break
+            link = parent.find("a", href=re.compile(r"opendocument"))
+            if link:
+                drug_href = link.get("href", "")
+                break
+
+        if drug_href:
+            drug_href = drug_href.strip()
+            if drug_href.startswith("/"):
+                drug_href = f"https://www.cbz.si{drug_href}"
+            smpc_map[drug_href] = smpc_url
+
+    return smpc_map
+
+
+def _fetch_smpc_pdf(url: str) -> Optional[bytes]:
+    """Download SmPC PDF bytes, using cache when available."""
+    cache_key = f"smpc_pdf_{hashlib.md5(url.encode()).hexdigest()}"
+
+    if is_cache_fresh(cache_key, max_age_hours=DRUG_PAGE_CACHE_TTL):
+        cached = read_cache(cache_key)
+        if cached and isinstance(cached, list) and cached:
+            try:
+                return base64.b64decode(cached[0])
+            except Exception:
+                pass
+
+    try:
+        response = requests.get(url, timeout=15)
+        response.raise_for_status()
+        pdf_bytes = response.content
+        write_cache(cache_key, [base64.b64encode(pdf_bytes).decode("ascii")])
+        return pdf_bytes
+    except Exception as e:
+        print(f"Error fetching SmPC PDF {url}: {e}")
+        return None
+
+
+def _parse_smpc_sections(pdf_bytes: bytes) -> Dict[str, Dict[str, str]]:
+    """Extract text from SmPC PDF and split into numbered sections.
+
+    Handles two common SmPC heading formats:
+    - Same line:  ``\\n4.1 Terapevtske indikacije\\n``
+    - Split line: ``\\n4.1 \\n Terapevtske indikacije\\n``
+
+    Filters out inline references like "poglavje 4.4" that aren't real headings.
+
+    Returns dict mapping section number to {"title": ..., "text": ...}.
+    """
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    full_text = ""
+    for page in doc:
+        full_text += page.get_text()
+    doc.close()
+
+    # Match section headings — number at line start, title on same or next line
+    # Pattern: \n{num}\s*\n\s*{title}\n  OR  \n{num} {title}\n
+    header_pattern = re.compile(
+        r"\n(\d+\.[\d.]*)\s*\n\s*([A-ZČŠŽĆĐ][^\n]+)"  # title on next line (uppercase start)
+        r"|"
+        r"\n(\d+\.[\d.]*)\s+([A-ZČŠŽĆĐ][^\n]+)",  # title on same line
+        re.MULTILINE,
+    )
+
+    raw_matches = []
+    for m in header_pattern.finditer(full_text):
+        # Determine which alternative matched
+        if m.group(1) is not None:
+            num = m.group(1).rstrip(".")
+            title = m.group(2).strip()
+        else:
+            num = m.group(3).rstrip(".")
+            title = m.group(4).strip()
+
+        # Skip inline references: preceded by "poglavje", "poglavja", "poglavji"
+        pre = full_text[max(0, m.start() - 30):m.start()]
+        if re.search(r"poglavj[aei]?\s*$", pre, re.IGNORECASE):
+            continue
+
+        # Only keep the first occurrence of each section number
+        if any(prev_num == num for prev_num, _, _ in raw_matches):
+            continue
+
+        raw_matches.append((num, title, m.start()))
+
+    sections: Dict[str, Dict[str, str]] = {}
+    for i, (num, title, pos) in enumerate(raw_matches):
+        # Text starts after the title line
+        title_end = full_text.index(title, pos) + len(title)
+        next_pos = raw_matches[i + 1][2] if i + 1 < len(raw_matches) else len(full_text)
+        section_text = full_text[title_end:next_pos].strip()
+        sections[num] = {"title": title, "text": section_text}
+
+    return sections
+
+
+def _get_smpc(query: str) -> Dict[str, Any]:
+    """Get SmPC (Summary of Product Characteristics) for a drug.
+
+    Downloads the SmPC PDF from CBZ, extracts clinically relevant sections
+    (indications, dosing, contraindications, interactions, side effects, etc.).
+
+    USE THIS TOOL WHEN:
+    - You need detailed clinical information about a drug
+    - Looking up indications, dosing, contraindications, or interactions
+    - Checking pregnancy/lactation safety
+    - Getting pharmacological properties
+    - Needing authoritative drug information from the SmPC document
+    """
+    if not query or len(query.strip()) < 2:
+        return {"found": False, "error": "Query must be at least 2 characters"}
+
+    try:
+        search_query = f"([TXIMELAS1]=_{quote(query.strip(), safe='')}*)"
+        url = f"{CBZ_API_BASE}?SearchView&Query={search_query}&SearchOrder=4&SearchMax=301"
+
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        html = response.text
+
+        # Extract SmPC URLs and drug URLs from the same search results page
+        smpc_map = _extract_smpc_urls(html)
+
+        if not smpc_map:
+            return {
+                "found": False,
+                "query": query,
+                "error": "No SmPC document found for this drug",
+            }
+
+        # Use the first match
+        drug_url = next(iter(smpc_map))
+        smpc_url = smpc_map[drug_url]
+
+        # Get drug name from the search results page
+        soup = BeautifulSoup(html, "html.parser")
+        drug_name = query
+        for link in soup.find_all("a", href=re.compile(r"opendocument")):
+            href = link.get("href", "").strip()
+            if href.startswith("/"):
+                href = f"https://www.cbz.si{href}"
+            if href == drug_url:
+                drug_name = link.get_text(strip=True)
+                break
+
+        # Fetch and parse PDF
+        pdf_bytes = _fetch_smpc_pdf(smpc_url)
+        if not pdf_bytes:
+            return {
+                "found": False,
+                "query": query,
+                "drug_name": drug_name,
+                "smpc_url": smpc_url,
+                "error": "Failed to download SmPC PDF",
+            }
+
+        all_sections = _parse_smpc_sections(pdf_bytes)
+
+        # Filter to clinically relevant sections
+        clinical_sections = {}
+        for sec_num, sec_data in all_sections.items():
+            if sec_num in SMPC_CLINICAL_SECTIONS:
+                clinical_sections[sec_num] = sec_data
+
+        return {
+            "found": True,
+            "query": query,
+            "drug_name": drug_name,
+            "smpc_url": smpc_url,
+            "sections": clinical_sections,
+        }
+
+    except Exception as e:
+        return {"found": False, "query": query, "error": str(e)[:200]}
 
 
 def _extract_basic_info(soup: BeautifulSoup) -> Dict[str, str]:
