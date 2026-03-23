@@ -43,6 +43,27 @@ def search_drugs_cbz(query: str, max_results: int = 301) -> List[Dict[str, Any]]
         # Attach SmPC URLs to matching drugs
         for drug in drugs:
             drug["smpc_url"] = smpc_map.get(drug.get("href", ""))
+
+        # For drugs missing SmPC, try to find EMA "Informacije o zdravilu" URL.
+        # All formulations share the same EMA PDF, so check only the first one.
+        info_url = None
+        for drug in drugs:
+            if drug["smpc_url"] is None and info_url is None:
+                detail_html = _fetch_drug_page_cached(drug.get("href", ""))
+                if detail_html:
+                    info_url = _extract_info_url_from_detail_page(detail_html)
+                    if info_url:
+                        drug["info_url"] = info_url
+                        break
+                # If this drug had no info_url either, stop trying
+                break
+
+        # Apply found info_url to all drugs missing smpc_url
+        if info_url:
+            for drug in drugs:
+                if drug["smpc_url"] is None and "info_url" not in drug:
+                    drug["info_url"] = info_url
+
         return drugs
     except Exception as e:
         print(f"Warning: Failed to fetch drugs from CBZ: {e}")
@@ -276,6 +297,21 @@ def _extract_smpc_urls(html: str) -> Dict[str, str]:
     return smpc_map
 
 
+def _extract_info_url_from_detail_page(html: str) -> Optional[str]:
+    """Extract 'Informacije o zdravilu' (EMA PDF) URL from a drug detail page.
+
+    Looks for <input class='button_p_zgo' value='Informacije o zdravilu'>
+    and extracts the URL from its onclick attribute.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    btn = soup.find("input", class_="button_p_zgo", attrs={"value": "Informacije o zdravilu"})
+    if not btn:
+        return None
+    onclick = btn.get("onclick", "")
+    m = re.search(r"window\.location='([^']+)'", onclick)
+    return m.group(1) if m else None
+
+
 def _fetch_smpc_pdf(url: str) -> Optional[bytes]:
     """Download SmPC PDF bytes, using cache when available."""
     cache_key = f"smpc_pdf_{hashlib.md5(url.encode()).hexdigest()}"
@@ -384,36 +420,57 @@ def _get_smpc(query: str) -> Dict[str, Any]:
         # Extract SmPC URLs and drug URLs from the same search results page
         smpc_map = _extract_smpc_urls(html)
 
-        if not smpc_map:
+        soup = BeautifulSoup(html, "html.parser")
+
+        # Determine PDF source: SmPC (from search results) or EMA fallback
+        source = "smpc"
+        pdf_url = None
+        drug_name = query
+
+        if smpc_map:
+            # Use the first SmPC match
+            drug_url = next(iter(smpc_map))
+            pdf_url = smpc_map[drug_url]
+
+            # Get drug name from the search results page
+            for link in soup.find_all("a", href=re.compile(r"opendocument")):
+                href = link.get("href", "").strip()
+                if href.startswith("/"):
+                    href = f"https://www.cbz.si{href}"
+                if href == drug_url:
+                    drug_name = link.get_text(strip=True)
+                    break
+        else:
+            # Fallback: check drug detail pages for "Informacije o zdravilu" (EMA PDF)
+            for link in soup.find_all("a", href=re.compile(r"opendocument")):
+                href = link.get("href", "").strip()
+                if href.startswith("/"):
+                    href = f"https://www.cbz.si{href}"
+                detail_html = _fetch_drug_page_cached(href)
+                if not detail_html:
+                    continue
+                info_url = _extract_info_url_from_detail_page(detail_html)
+                if info_url:
+                    pdf_url = info_url
+                    drug_name = link.get_text(strip=True)
+                    source = "ema"
+                    break
+
+        if not pdf_url:
             return {
                 "found": False,
                 "query": query,
                 "error": "No SmPC document found for this drug",
             }
 
-        # Use the first match
-        drug_url = next(iter(smpc_map))
-        smpc_url = smpc_map[drug_url]
-
-        # Get drug name from the search results page
-        soup = BeautifulSoup(html, "html.parser")
-        drug_name = query
-        for link in soup.find_all("a", href=re.compile(r"opendocument")):
-            href = link.get("href", "").strip()
-            if href.startswith("/"):
-                href = f"https://www.cbz.si{href}"
-            if href == drug_url:
-                drug_name = link.get_text(strip=True)
-                break
-
         # Fetch and parse PDF
-        pdf_bytes = _fetch_smpc_pdf(smpc_url)
+        pdf_bytes = _fetch_smpc_pdf(pdf_url)
         if not pdf_bytes:
             return {
                 "found": False,
                 "query": query,
                 "drug_name": drug_name,
-                "smpc_url": smpc_url,
+                "pdf_url": pdf_url,
                 "error": "Failed to download SmPC PDF",
             }
 
@@ -427,9 +484,10 @@ def _get_smpc(query: str) -> Dict[str, Any]:
 
         return {
             "found": True,
+            "source": source,
             "query": query,
             "drug_name": drug_name,
-            "smpc_url": smpc_url,
+            "pdf_url": pdf_url,
             "sections": clinical_sections,
         }
 
