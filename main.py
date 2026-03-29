@@ -13,6 +13,7 @@ from drugs import initialize_drugs, _get_drug_info, _get_prescription_limitation
 from icd10 import initialize_icd10, _get_icd10
 from zzzs import initialize_zzzs, _get_zzzs_limitation, _browse_zzzs_rules, _list_zzzs_categories
 from egradiva import initialize_egradiva, _search_egradiva
+from spa import initialize_spa, _get_spa_eligibility
 from templates import initialize_templates, _get_template, _list_templates, _format_note_prompt
 
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
@@ -32,6 +33,7 @@ _init_functions = {
     "icd10": initialize_icd10,
     "zzzs": initialize_zzzs,
     "egradiva": initialize_egradiva,
+    "spa": initialize_spa,
     "templates": initialize_templates,
 }
 
@@ -246,6 +248,40 @@ def poisci_zzzs_dokumente(query: str, category: str = None) -> dict:
     return _search_egradiva(query, category=category)
 
 
+# Register spa eligibility tools
+@mcp.tool()
+def get_spa_eligibility(query: str) -> dict:
+    """Check which Slovenian spas (zdravilišča) are eligible for rehabilitation
+    under mandatory health insurance (ZZZS) based on disease type or spa name.
+
+    Query can be a disease/condition description, a standard type (tip 1-9),
+    or a spa name. Returns matching spas with eligibility level (A/B).
+
+    USE THIS TOOL WHEN:
+    - Checking which spas cover a specific condition for rehab
+    - Finding out if a spa is eligible for a patient's diagnosis
+    - Looking up rehabilitation options under ZZZS insurance
+
+    STANDARD TYPES (tip 1-9):
+    • tip 1: Vnetne revmatske bolezni
+    • tip 2: Degenerativni izvensklepni revmatizem
+    • tip 3: Stanje po poškodbah in operacijah na lokomotornem sistemu
+    • tip 4: Nevrološke bolezni, CVI, živčno-mišične bolezni
+    • tip 5: Bolezni ter stanja po operacijah srca in ožilja
+    • tip 6: Ginekološke bolezni, stanja po op. v mali medenici
+    • tip 7: Kožne bolezni
+    • tip 8: Gastroenterološke in endokrine bolezni
+    • tip 9: Obolenja dihal
+
+    EXAMPLES:
+    • "tip 1" → All spas for inflammatory rheumatic diseases
+    • "Terme Čatež" → All standards covered by that spa
+    • "kožne bolezni" → Spas for skin diseases (tip 7)
+    • "nevrološke" → Spas for neurological rehab (tip 4)
+    """
+    return _get_spa_eligibility(query)
+
+
 # Register template tools
 @mcp.tool()
 def get_note_template(template_name: str) -> dict:
@@ -313,6 +349,7 @@ def health_check() -> dict:
     from icd10 import ICD10_CODES
     from zzzs import ZZZS_DRUGS, ZZZS_GROUPS, ZZZS_RULES
     from egradiva import COLLECTION
+    from spa import SPA_ELIGIBILITY, STANDARD_TYPES
     from templates import TEMPLATES
 
     modules = {
@@ -321,6 +358,7 @@ def health_check() -> dict:
         "icd10": {"loaded": bool(ICD10_CODES), "records": len(ICD10_CODES) if ICD10_CODES else 0},
         "zzzs": {"loaded": bool(ZZZS_DRUGS), "records": f"{len(ZZZS_DRUGS)} drugs, {len(ZZZS_GROUPS)} groups, {len(ZZZS_RULES)} rules"},
         "egradiva": {"loaded": COLLECTION is not None, "records": COLLECTION.count() if COLLECTION else 0},
+        "spa": {"loaded": bool(SPA_ELIGIBILITY), "records": f"{len(SPA_ELIGIBILITY)} spas, {len(STANDARD_TYPES)} standards"},
         "templates": {"loaded": bool(TEMPLATES), "records": len(TEMPLATES) if TEMPLATES else 0},
     }
 
@@ -451,6 +489,16 @@ def seznam_kategorij_zzzs() -> dict:
     Slovensko poimenovanje orodja list_zzzs_categories — deluje enako.
     """
     return _list_zzzs_categories()
+
+
+@mcp.tool()
+def poisci_zdravilisce(query: str) -> dict:
+    """Preveri katera zdravilišča v Sloveniji so upravičena do rehabilitacije
+    iz obveznega zdravstvenega zavarovanja (ZZZS) glede na tip bolezni.
+
+    Slovensko poimenovanje orodja get_spa_eligibility — deluje enako.
+    """
+    return _get_spa_eligibility(query)
 
 
 @mcp.tool()
