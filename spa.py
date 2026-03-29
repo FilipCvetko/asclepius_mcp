@@ -8,6 +8,8 @@ from typing import Any, Dict, List
 # Source: https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/14e583d0bfccfd93c12571860053dd2d/
 # ---------------------------------------------------------------------------
 
+SOURCE_URL = "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/14e583d0bfccfd93c12571860053dd2d/$FILE/zlo%C5%BEenka%20Seznam%20zdravili%C5%A1%C4%8D%20v%20Sloveniji_avgust%202025.pdf"
+
 STANDARD_TYPES = {
     "tip 1": "Vnetne revmatske bolezni",
     "tip 2": "Degenerativni izvensklepni revmatizem",
@@ -144,6 +146,7 @@ def _get_spa_eligibility(query: str) -> Dict[str, Any]:
             "found": False,
             "error": "Query must not be empty",
             "standards": {k: v for k, v in STANDARD_TYPES.items()},
+            "source_url": SOURCE_URL,
         }
 
     # Check for direct standard type match (e.g. "tip 1", "tip 5")
@@ -221,6 +224,7 @@ def _get_spa_eligibility(query: str) -> Dict[str, Any]:
             "query": query,
             "error": "No matches found",
             "available_standards": {k: v for k, v in STANDARD_TYPES.items()},
+            "source_url": SOURCE_URL,
         }
 
     return {
@@ -232,4 +236,5 @@ def _get_spa_eligibility(query: str) -> Dict[str, Any]:
             "A": "Primarna dejavnost – polna rehabilitacija z negovalnim oddelkom",
             "B": "Sekundarna dejavnost – rehabilitacija brez negovalnega oddelka",
         },
+        "source_url": SOURCE_URL,
     }

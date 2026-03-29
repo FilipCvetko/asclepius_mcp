@@ -25,7 +25,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /root/.cache /root/.cache
 
 # Copy application code
-COPY main.py cache.py contacts.py drugs.py egradiva.py icd10.py zzzs.py templates.py ./
+COPY main.py cache.py contacts.py drugs.py egradiva.py icd10.py spa.py zzzs.py templates.py ./
 
 # Copy small data files needed at runtime
 COPY data/icd10_codes.json data/zzzs_rules.json data/
