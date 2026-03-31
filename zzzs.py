@@ -11,6 +11,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from cache import is_cache_fresh, read_cache, write_cache
+from fastmcp.tools.tool import ToolResult
 
 # Configuration
 DATA_DIR = Path(__file__).parent / "data"
@@ -209,21 +210,110 @@ def _refresh_group_data() -> None:
         print(f"Loaded {len(ZZZS_GROUPS)} ZZZS groups from stale cache")
 
 
-def _get_zzzs_limitation(query: str) -> Dict[str, Any]:
+# ── Formatting helpers ──────────────────────────────────────────────
+
+def _blockquote(text: str) -> str:
+    if not text:
+        return ""
+    return "\n".join(f"> {line}" for line in text.strip().splitlines())
+
+
+def _format_zzzs_limitation_md(data: dict) -> str:
+    if not data.get("found"):
+        return f"No ZZZS drug limitations found for \"{data.get('query', '')}\". {data.get('error', '')}"
+
+    lines = [f"**ZZZS omejitve** | {data['count']} results for \"{data['query']}\"", ""]
+
+    for r in data["results"]:
+        lines.append("---")
+        lines.append("")
+        name = r.get("name", "")
+        atc = r.get("atc", "")
+        lista = r.get("list", "")
+        conf = r.get("confidence", "")
+        lines.append(f"**{name}** ({atc}) | Lista: {lista} | Confidence: {conf}")
+        lines.append("")
+
+        limitation = r.get("limitation", "")
+        if limitation:
+            lines.append(_blockquote(limitation))
+        else:
+            lines.append("Brez omejitve.")
+        lines.append("")
+
+        valid = r.get("valid_from", "")
+        if valid:
+            lines.append(f"Veljavno od: {valid}")
+            lines.append("")
+
+    return "\n".join(lines)
+
+
+def _format_rules_md(data: dict, heading: str = "Pravila OZZ") -> str:
+    if not data.get("found"):
+        q = data.get("query", data.get("category", ""))
+        return f"No ZZZS rules found for \"{q}\". {data.get('error', '')}"
+
+    q = data.get("query", data.get("category", ""))
+    lines = [f"**{heading}** | {data['count']} results for \"{q}\"", ""]
+
+    for r in data["results"]:
+        lines.append("---")
+        lines.append("")
+        title = r.get("title", "Untitled")
+        art_num = r.get("article_number")
+        if art_num:
+            lines.append(f"### Čl. {art_num}: {title}")
+        else:
+            lines.append(f"### {title}")
+        lines.append("")
+
+        meta_parts = []
+        if r.get("section"):
+            meta_parts.append(f"**Section**: {r['section']}")
+        if r.get("category"):
+            meta_parts.append(f"**Category**: {r['category']}")
+        if r.get("confidence") is not None:
+            meta_parts.append(f"**Confidence**: {r['confidence']}")
+        if meta_parts:
+            lines.append(" | ".join(meta_parts))
+            lines.append("")
+
+        if r.get("text"):
+            lines.append(_blockquote(r["text"]))
+            lines.append("")
+
+        source_url = r.get("source_url", "")
+        if source_url:
+            lines.append(f"[Vir]({source_url})")
+            lines.append("")
+
+    return "\n".join(lines)
+
+
+def _wrap(data: dict, formatter) -> ToolResult:
+    return ToolResult(content=formatter(data), structured_content=data)
+
+
+# ── Tool functions ──────────────────────────────────────────────────
+
+def _get_zzzs_limitation(query: str) -> ToolResult:
     """Search ZZZS drug limitations by drug name, ATC, or limitation text."""
     if not ZZZS_DRUGS:
-        # Lazy refresh
         _refresh_drug_data()
         _build_drug_index(ZZZS_DRUGS)
         if not ZZZS_DRUGS:
-            return {"found": False, "error": "No ZZZS drug data available"}
+            err = {"found": False, "error": "No ZZZS drug data available"}
+            return _wrap(err, _format_zzzs_limitation_md)
 
     if DRUG_VECTORIZER is None or DRUG_VECTORS is None:
-        return {"found": False, "error": "Drug search index not initialized"}
+        err = {"found": False, "error": "Drug search index not initialized"}
+        return _wrap(err, _format_zzzs_limitation_md)
 
     query = query.strip()
     if not query:
-        return {"found": False, "error": "Query must not be empty"}
+        err = {"found": False, "error": "Query must not be empty"}
+        return _wrap(err, _format_zzzs_limitation_md)
 
     query_vector = DRUG_VECTORIZER.transform([query])
     similarities = cosine_similarity(query_vector, DRUG_VECTORS).flatten()
@@ -240,33 +330,32 @@ def _get_zzzs_limitation(query: str) -> Dict[str, Any]:
     results.sort(key=lambda x: x["confidence"], reverse=True)
 
     if not results:
-        return {"found": False, "error": "No matching drugs found", "query": query}
+        err = {"found": False, "error": "No matching drugs found", "query": query}
+        return _wrap(err, _format_zzzs_limitation_md)
 
-    return {
+    data = {
         "found": True,
         "count": len(results[:20]),
         "query": query,
         "results": results[:20],
-        "_citation_instruction": (
-            "IMPORTANT: For each result, you MUST (1) quote the 'limitation' text verbatim "
-            "inside a Markdown blockquote (> ) so it is visually distinct as an unmodified source excerpt, "
-            "(2) show the drug name, list type, and ATC code, "
-            "(3) show the confidence score. Present ALL results."
-        ),
     }
+    return _wrap(data, _format_zzzs_limitation_md)
 
 
-def _get_zzzs_prescribing_rules(topic: str) -> Dict[str, Any]:
+def _get_zzzs_prescribing_rules(topic: str) -> ToolResult:
     """Search bundled ZZZS rules about prescribing, referrals, coverage."""
     if not ZZZS_RULES:
-        return {"found": False, "error": "No ZZZS rules data available (data/zzzs_rules.json not found)"}
+        err = {"found": False, "error": "No ZZZS rules data available (data/zzzs_rules.json not found)"}
+        return _wrap(err, _format_rules_md)
 
     if RULES_VECTORIZER is None or RULES_VECTORS is None:
-        return {"found": False, "error": "Rules search index not initialized"}
+        err = {"found": False, "error": "Rules search index not initialized"}
+        return _wrap(err, _format_rules_md)
 
     topic = topic.strip()
     if not topic:
-        return {"found": False, "error": "Topic must not be empty"}
+        err = {"found": False, "error": "Topic must not be empty"}
+        return _wrap(err, _format_rules_md)
 
     query_vector = RULES_VECTORIZER.transform([topic])
     similarities = cosine_similarity(query_vector, RULES_VECTORS).flatten()
@@ -276,37 +365,34 @@ def _get_zzzs_prescribing_rules(topic: str) -> Dict[str, Any]:
         if score > 0.15:
             rule = ZZZS_RULES[idx]
             result = {**rule, "confidence": round(float(score), 4)}
-            # Ensure source_url is always present
             result.setdefault("source_url", "")
             results.append(result)
 
     results.sort(key=lambda x: x["confidence"], reverse=True)
 
     if not results:
-        return {"found": False, "error": "No matching rules found", "query": topic}
+        err = {"found": False, "error": "No matching rules found", "query": topic}
+        return _wrap(err, _format_rules_md)
 
-    return {
+    data = {
         "found": True,
         "count": len(results[:10]),
         "query": topic,
         "results": results[:10],
-        "_citation_instruction": (
-            "IMPORTANT: For each result, you MUST (1) quote the relevant portion of the 'text' field verbatim "
-            "inside a Markdown blockquote (> ) so it is visually distinct as an unmodified source excerpt, "
-            "(2) show the title, section, and source_url as a clickable link, "
-            "(3) show the confidence score. Present ALL results."
-        ),
     }
+    return _wrap(data, _format_rules_md)
 
 
-def _browse_zzzs_rules(category: str) -> Dict[str, Any]:
+def _browse_zzzs_rules(category: str) -> ToolResult:
     """Browse ZZZS rules by category/section. Falls back to TF-IDF search."""
     if not ZZZS_RULES:
-        return {"found": False, "error": "No ZZZS rules data available"}
+        err = {"found": False, "error": "No ZZZS rules data available"}
+        return _wrap(err, _format_rules_md)
 
     category = category.strip().lower()
     if not category:
-        return {"found": False, "error": "Category must not be empty"}
+        err = {"found": False, "error": "Category must not be empty"}
+        return _wrap(err, _format_rules_md)
 
     # Exact category match
     matches = [r for r in ZZZS_RULES if r.get("category", "").lower() == category]
@@ -320,7 +406,7 @@ def _browse_zzzs_rules(category: str) -> Dict[str, Any]:
             or category in r.get("chapter", "").lower()
         ]
 
-    # Fall back to TF-IDF search
+    # Fall back to TF-IDF search (already returns ToolResult)
     if not matches:
         return _get_zzzs_prescribing_rules(category)
 
@@ -332,17 +418,13 @@ def _browse_zzzs_rules(category: str) -> Dict[str, Any]:
     ]
     results.sort(key=lambda x: x.get("article_number", 0))
 
-    return {
+    data = {
         "found": True,
         "count": len(results),
         "category": category,
         "results": results,
-        "_citation_instruction": (
-            "IMPORTANT: For each result, you MUST (1) quote the relevant portion of the 'text' field verbatim "
-            "inside a Markdown blockquote (> ) so it is visually distinct as an unmodified source excerpt, "
-            "(2) show the title, article number, and source_url as a clickable link. Present ALL results."
-        ),
     }
+    return _wrap(data, _format_rules_md)
 
 
 def _list_zzzs_categories() -> Dict[str, Any]:

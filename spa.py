@@ -2,6 +2,8 @@
 
 from typing import Any, Dict, List
 
+from fastmcp.tools.tool import ToolResult
+
 
 # ---------------------------------------------------------------------------
 # Data (Priloga 19 Uredbe o programih storitev OZZ, avgust 2025)
@@ -138,16 +140,91 @@ def initialize_spa() -> None:
     print(f"Spa module ready: {len(SPA_ELIGIBILITY)} spas, {len(STANDARD_TYPES)} standards")
 
 
-def _get_spa_eligibility(query: str) -> Dict[str, Any]:
+# ── Formatting helpers ──────────────────────────────────────────────
+
+def _format_spa_md(data: dict) -> str:
+    if not data.get("found"):
+        lines = [f"No spa eligibility found for \"{data.get('query', '')}\". {data.get('error', '')}"]
+        stds = data.get("available_standards") or data.get("standards")
+        if stds:
+            lines.append("")
+            lines.append("**Available standards:**")
+            for k, v in stds.items():
+                lines.append(f"- {k}: {v}")
+        source = data.get("source_url", "")
+        if source:
+            lines.append("")
+            lines.append(f"[Vir (ZZZS PDF)]({source})")
+        return "\n".join(lines)
+
+    lines = [f"**Zdravilišča ZZZS** | Results for \"{data['query']}\"", ""]
+    lines.append("**Legenda**: A = Primarna dejavnost (polna rehab. z negovalnim oddelkom), B = Sekundarna (brez)")
+    lines.append("")
+
+    # Spa profiles (when searching by spa name)
+    for profile in data.get("spa_profiles") or []:
+        lines.append("---")
+        lines.append("")
+        spa_name = profile.get("spa", "")
+        spa_url = profile.get("url", "")
+        if spa_url:
+            lines.append(f"### [{spa_name}]({spa_url})")
+        else:
+            lines.append(f"### {spa_name}")
+        lines.append("")
+
+        for tip_key, info in sorted(profile.get("standards", {}).items()):
+            level = info.get("level", "")
+            desc = info.get("description", "")
+            label = info.get("label", "")
+            lines.append(f"> **{tip_key}**: {desc} — **{level}** ({label})")
+        lines.append("")
+
+    # Standard results (when searching by condition/tip)
+    for sr in data.get("standard_results") or []:
+        lines.append("---")
+        lines.append("")
+        lines.append(f"### {sr['standard']} — {sr['description']}")
+        lines.append("")
+
+        if sr.get("primary_A"):
+            lines.append("**A (Primarna)**:")
+            for spa in sr["primary_A"]:
+                if spa.get("url"):
+                    lines.append(f"- [{spa['name']}]({spa['url']})")
+                else:
+                    lines.append(f"- {spa['name']}")
+            lines.append("")
+
+        if sr.get("secondary_B"):
+            lines.append("**B (Sekundarna)**:")
+            for spa in sr["secondary_B"]:
+                if spa.get("url"):
+                    lines.append(f"- [{spa['name']}]({spa['url']})")
+                else:
+                    lines.append(f"- {spa['name']}")
+            lines.append("")
+
+    source = data.get("source_url", "")
+    if source:
+        lines.append("---")
+        lines.append("")
+        lines.append(f"[Vir (ZZZS PDF)]({source})")
+
+    return "\n".join(lines)
+
+
+def _get_spa_eligibility(query: str) -> ToolResult:
     """Check spa eligibility for rehabilitation under ZZZS mandatory insurance."""
     q = query.strip().lower()
     if not q:
-        return {
+        err = {
             "found": False,
             "error": "Query must not be empty",
             "standards": {k: v for k, v in STANDARD_TYPES.items()},
             "source_url": SOURCE_URL,
         }
+        return ToolResult(content=_format_spa_md(err), structured_content=err)
 
     # Check for direct standard type match (e.g. "tip 1", "tip 5")
     matched_standards: List[str] = []
@@ -219,15 +296,16 @@ def _get_spa_eligibility(query: str) -> Dict[str, Any]:
             })
 
     if not results and not standard_results:
-        return {
+        err = {
             "found": False,
             "query": query,
             "error": "No matches found",
             "available_standards": {k: v for k, v in STANDARD_TYPES.items()},
             "source_url": SOURCE_URL,
         }
+        return ToolResult(content=_format_spa_md(err), structured_content=err)
 
-    return {
+    data = {
         "found": True,
         "query": query,
         "spa_profiles": results if results else None,
@@ -237,10 +315,5 @@ def _get_spa_eligibility(query: str) -> Dict[str, Any]:
             "B": "Sekundarna dejavnost – rehabilitacija brez negovalnega oddelka",
         },
         "source_url": SOURCE_URL,
-        "_citation_instruction": (
-            "IMPORTANT: You MUST (1) show the source_url as a clickable link to the ZZZS PDF document, "
-            "(2) present all matching spas with their eligibility level (A/B) and standard descriptions "
-            "inside a Markdown blockquote (> ) so source data is visually distinct from your commentary, "
-            "(3) explain what A and B levels mean using the legend. Present ALL results."
-        ),
     }
+    return ToolResult(content=_format_spa_md(data), structured_content=data)

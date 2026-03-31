@@ -9,6 +9,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from cache import is_cache_fresh, read_cache, write_cache
+from fastmcp.tools.tool import ToolResult
 
 # Configuration
 DATA_DIR = Path(__file__).parent / "data"
@@ -25,12 +26,7 @@ VECTORS: Optional[Any] = None
 
 
 def _download_and_parse_mkb10() -> List[Dict[str, Any]]:
-    """Download XLSX from NIJZ, parse sheet 'MKB-10-AM v11', return ICD-10 records.
-
-    XLSX structure (sheet 'MKB-10-AM v11'):
-        Col 0: POGLAVJE, Col 1: KATEGORIJA, Col 4: SKLOP / 1. NIVO,
-        Col 7: RAVEN, Col 8: KODA, Col 9: SLOVENSKI NAZIV
-    """
+    """Download XLSX from NIJZ, parse sheet 'MKB-10-AM v11', return ICD-10 records."""
     try:
         import openpyxl
         import requests
@@ -59,28 +55,24 @@ def _download_and_parse_mkb10() -> List[Dict[str, Any]]:
 
         wb = openpyxl.load_workbook(tmp_path, read_only=True, data_only=True)
 
-        # Use the main data sheet
         sheet_name = "MKB-10-AM v11"
         if sheet_name not in wb.sheetnames:
-            # Fallback: try second sheet or active
             sheet_name = wb.sheetnames[1] if len(wb.sheetnames) > 1 else wb.sheetnames[0]
         ws = wb[sheet_name]
 
-        # Skip header row (row 1)
         for row in ws.iter_rows(min_row=2, values_only=True):
             if not row or len(row) < 10:
                 continue
 
-            code = str(row[8] or "").strip()   # KODA
-            desc_sl = str(row[9] or "").strip()  # SLOVENSKI NAZIV
-            category_raw = str(row[4] or "").strip()  # SKLOP / 1. NIVO
+            code = str(row[8] or "").strip()
+            desc_sl = str(row[9] or "").strip()
+            category_raw = str(row[4] or "").strip()
 
             if not code or not desc_sl:
                 continue
 
             code = code.upper().replace(" ", "")
 
-            # Format category from SKLOP (e.g. "A00A09" -> "A00-A09")
             if len(category_raw) == 6 and category_raw[0].isalpha():
                 category = f"{category_raw[:3]}-{category_raw[3:]}"
             else:
@@ -148,7 +140,6 @@ def initialize_icd10() -> None:
 
     print("Loading ICD-10/MKB-10 codes...")
 
-    # Try fresh cache first
     if is_cache_fresh(CACHE_NAME, max_age_hours=CACHE_TTL_HOURS):
         cached = read_cache(CACHE_NAME)
         if cached:
@@ -157,7 +148,6 @@ def initialize_icd10() -> None:
             print(f"Loaded {len(ICD10_CODES)} ICD-10 codes from cache")
             return
 
-    # Try downloading fresh data
     try:
         codes = _download_and_parse_mkb10()
         if codes:
@@ -170,7 +160,6 @@ def initialize_icd10() -> None:
     except Exception as e:
         print(f"Warning: Failed to download ICD-10 data: {e}")
 
-    # Fall back to stale cache
     cached = read_cache(CACHE_NAME)
     if cached:
         ICD10_CODES = cached
@@ -178,7 +167,6 @@ def initialize_icd10() -> None:
         print(f"Loaded {len(ICD10_CODES)} ICD-10 codes from stale cache")
         return
 
-    # Fall back to bundled data
     bundled = _load_bundled_data()
     if bundled:
         ICD10_CODES = bundled
@@ -190,59 +178,86 @@ def initialize_icd10() -> None:
     print("Warning: No ICD-10 data available")
 
 
-def _get_icd10(query: str) -> Dict[str, Any]:
+# ── Formatting helpers ──────────────────────────────────────────────
+
+def _format_icd10_md(data: dict) -> str:
+    if not data.get("found"):
+        return f"No ICD-10 codes found for \"{data.get('query', '')}\". {data.get('error', '')}"
+
+    lines = [f"**MKB-10** | {data['count']} results for \"{data['query']}\"", ""]
+
+    # Determine column header based on match_type vs confidence
+    has_confidence = any("confidence" in r for r in data["results"])
+    last_col = "Zaupanje" if has_confidence else "Ujemanje"
+
+    lines.append(f"| Koda | Opis (SL) | Kategorija | {last_col} |")
+    lines.append("|------|-----------|------------|----------|")
+
+    for r in data["results"]:
+        code = r.get("code", "")
+        desc = r.get("description_sl", "")
+        cat = r.get("category", "")
+        if has_confidence:
+            score = r.get("confidence", "")
+        else:
+            score = r.get("match_type", "")
+        lines.append(f"| {code} | {desc} | {cat} | {score} |")
+
+    return "\n".join(lines)
+
+
+# ── Tool functions ──────────────────────────────────────────────────
+
+def _get_icd10(query: str) -> ToolResult:
     """Bidirectional ICD-10 lookup: code→description or description→codes."""
     if not ICD10_CODES:
-        # Try lazy refresh
         initialize_icd10()
         if not ICD10_CODES:
-            return {"found": False, "error": "No ICD-10 data available"}
+            err = {"found": False, "error": "No ICD-10 data available"}
+            return ToolResult(content=_format_icd10_md(err), structured_content=err)
 
     query = query.strip()
     if not query:
-        return {"found": False, "error": "Query must not be empty"}
+        err = {"found": False, "error": "Query must not be empty"}
+        return ToolResult(content=_format_icd10_md(err), structured_content=err)
 
-    # Check if query looks like an ICD-10 code
     if CODE_PATTERN.match(query):
         return _lookup_by_code(query.upper())
     else:
         return _search_by_description(query)
 
 
-def _lookup_by_code(code: str) -> Dict[str, Any]:
+def _lookup_by_code(code: str) -> ToolResult:
     """Exact code lookup, then prefix match."""
     results = []
 
-    # Exact match first
     for c in ICD10_CODES:
         if c["code"] == code:
             results.append({**c, "match_type": "exact"})
             break
 
-    # Prefix match (e.g. "J06" matches "J06.0", "J06.9", etc.)
     for c in ICD10_CODES:
         if c["code"].startswith(code) and c["code"] != code:
             results.append({**c, "match_type": "prefix"})
 
     if not results:
-        return {"found": False, "error": f"No ICD-10 code matching '{code}'", "query": code}
+        err = {"found": False, "error": f"No ICD-10 code matching '{code}'", "query": code}
+        return ToolResult(content=_format_icd10_md(err), structured_content=err)
 
-    return {
+    data = {
         "found": True,
         "count": len(results),
         "query": code,
         "results": results[:20],
-        "_citation_instruction": (
-            "IMPORTANT: For each result, show the ICD-10 code and Slovenian description. "
-            "Show the match type (exact/prefix). Present ALL results."
-        ),
     }
+    return ToolResult(content=_format_icd10_md(data), structured_content=data)
 
 
-def _search_by_description(query: str) -> Dict[str, Any]:
+def _search_by_description(query: str) -> ToolResult:
     """TF-IDF search across descriptions."""
     if VECTORIZER is None or VECTORS is None:
-        return {"found": False, "error": "Search index not initialized"}
+        err = {"found": False, "error": "Search index not initialized"}
+        return ToolResult(content=_format_icd10_md(err), structured_content=err)
 
     query_vector = VECTORIZER.transform([query])
     similarities = cosine_similarity(query_vector, VECTORS).flatten()
@@ -258,30 +273,26 @@ def _search_by_description(query: str) -> Dict[str, Any]:
     results.sort(key=lambda x: x["confidence"], reverse=True)
 
     if not results:
-        return {"found": False, "error": "No matching ICD-10 codes found", "query": query}
+        err = {"found": False, "error": "No matching ICD-10 codes found", "query": query}
+        return ToolResult(content=_format_icd10_md(err), structured_content=err)
 
-    return {
+    data = {
         "found": True,
         "count": len(results[:20]),
         "query": query,
         "results": results[:20],
-        "_citation_instruction": (
-            "IMPORTANT: For each result, show the ICD-10 code and Slovenian description. "
-            "Show the confidence score. Present ALL results."
-        ),
     }
+    return ToolResult(content=_format_icd10_md(data), structured_content=data)
 
 
 if __name__ == "__main__":
     print("Testing ICD-10 module...")
     initialize_icd10()
 
-    # Test code lookup
     print("\n--- Code lookup: J06.9 ---")
     result = _get_icd10("J06.9")
-    print(json.dumps(result, ensure_ascii=False, indent=2)[:500])
+    print(result)
 
-    # Test description search
     print("\n--- Description search: glavobol ---")
     result = _get_icd10("glavobol")
-    print(json.dumps(result, ensure_ascii=False, indent=2)[:500])
+    print(result)

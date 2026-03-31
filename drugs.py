@@ -11,6 +11,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from cache import is_cache_fresh, read_cache, write_cache
+from fastmcp.tools.tool import ToolResult
 
 # Configuration
 CBZ_API_BASE = "https://www.cbz.si/cbz/bazazdr2.nsf/Search"
@@ -19,11 +20,11 @@ DRUG_PAGE_CACHE_TTL = 24  # hours
 
 def search_drugs_cbz(query: str, max_results: int = 301) -> List[Dict[str, Any]]:
     """Search for drugs in the CBZ (Centralna baza zdravil) database.
-    
+
     Args:
         query: Drug name or search term
         max_results: Maximum number of results (default 301)
-    
+
     Returns:
         List of drug results from CBZ filtered by cosine similarity (>= 0.6)
     """
@@ -31,13 +32,13 @@ def search_drugs_cbz(query: str, max_results: int = 301) -> List[Dict[str, Any]]
         # Build the search query - search in drug name field
         # Format: ([TXIMELAS1]=_DRUGNAME*)
         search_query = f"([TXIMELAS1]=_{quote(query, safe='')}*)"
-        
+
         # Build full URL string
         url = f"{CBZ_API_BASE}?SearchView&Query={search_query}&SearchOrder=4&SearchMax={max_results}"
-        
+
         response = requests.get(url, timeout=10)
         response.raise_for_status()
-        
+
         smpc_map = _extract_smpc_urls(response.text)
         drugs = _parse_cbz_html(response.text, query)
         # Attach SmPC URLs to matching drugs
@@ -73,58 +74,58 @@ def search_drugs_cbz(query: str, max_results: int = 301) -> List[Dict[str, Any]]
 def _parse_cbz_html(html: str, query: str) -> List[Dict[str, Any]]:
     """Parse HTML response from CBZ API and extract drug information."""
     drugs = []
-    
+
     try:
         soup = BeautifulSoup(html, "html.parser")
-        
+
         # Find all TD elements with class 'textbarva0'
         tds = soup.find_all("td", class_="textbarva0")
-        
+
         if not tds:
             return drugs
-        
+
         # Extract drug names and links
         for td in tds:
             try:
                 # Find all anchor tags within the td
                 links = td.find_all("a")
-                
+
                 if len(links) < 2:
                     continue
-                
+
                 # The second link contains the drug name and href to the document
                 drug_link = links[1]
                 href = drug_link.get("href", "").strip()
                 drug_name = drug_link.get_text(strip=True)
-                
+
                 # Skip if no name or href
                 if not drug_name or not href:
                     continue
-                
+
                 # Clean up the href (make it absolute if needed)
                 if href.startswith("/cbz"):
                     href = f"https://www.cbz.si{href}"
-                
+
                 # Fetch and parse the drug detail page
                 drug_details = _fetch_and_parse_drug_page(href)
-                
+
                 drug_data = {
                     "name": drug_name.encode("utf-8", errors="ignore").decode("utf-8"),
                     "href": href,
                     "title": drug_link.get("title", "").encode("utf-8", errors="ignore").decode("utf-8"),
                 }
-                
+
                 # Merge in the parsed details
                 if drug_details:
                     drug_data.update(drug_details)
-                
+
                 drugs.append(drug_data)
             except Exception as e:
                 continue
-        
+
     except Exception as e:
         print(f"Error parsing CBZ HTML: {e}")
-    
+
     return drugs
 
 
@@ -133,39 +134,39 @@ def _fetch_and_parse_drug_page(href: str) -> Optional[Dict[str, Any]]:
     try:
         response = requests.get(href, timeout=10)
         response.raise_for_status()
-        
+
         soup = BeautifulSoup(response.text, "html.parser")
-        
+
         # Remove script and style elements
         for script in soup(["script", "style"]):
             script.decompose()
-        
+
         # Find the main content area - typically in body or a main container
         # Remove navigation, header, footer if possible
         for element in soup.find_all(["nav", "header", "footer"]):
             element.decompose()
-        
+
         # Get the main body content or largest content div
         main_content = soup.find("body")
         if not main_content:
             main_content = soup
-        
+
         # Get text with preserved structure
         text = main_content.get_text(separator="\n", strip=True)
-        
+
         # Clean up excessive whitespace
         lines = [line.strip() for line in text.split("\n") if line.strip()]
         content = "\n".join(lines)
-        
+
         # Limit to reasonable size for LLM consumption
         if len(content) > 3000:
             content = content[:3000] + "\n... [content truncated]"
-        
+
         return {
             "content": content.encode("utf-8", errors="ignore").decode("utf-8"),
             "source": href
         }
-        
+
     except Exception as e:
         print(f"Error fetching drug page {href}: {e}")
         return None
@@ -176,59 +177,148 @@ def initialize_drugs() -> None:
     print("Drugs module initialized (direct CBZ API mode)")
 
 
-def _get_drug_info(query: str) -> Dict[str, Any]:
-    """Get drug information from CBZ database.
-    
-    Search for drugs by name in the Slovenian Central Drug Database (CBZ).
-    Returns all matching drugs from the search results with their clickable links.
-    
-    USE THIS TOOL WHEN:
-    - Looking up drug information by name
-    - Finding available forms (tablets, injections, drops, etc.)
-    - Getting links to full drug documentation
-    
-    EXAMPLES - Try these queries:
-    • "Plivit D3" → Vitamin D preparations
-    • "Aspirin" → Pain/fever medication
-    • "Paracetamol" → Acetaminophen variants
-    • "Amoksicilina" → Antibiotic
-    • "Ibuprofen" → Anti-inflammatory
-    """
+# ── Formatting helpers ──────────────────────────────────────────────
+
+def _blockquote(text: str) -> str:
+    if not text:
+        return ""
+    return "\n".join(f"> {line}" for line in text.strip().splitlines())
+
+
+def _format_drug_info_md(data: dict) -> str:
+    if not data.get("found"):
+        return f"No drugs found for \"{data.get('query', '')}\". {data.get('error', '')}"
+
+    lines = [f"**CBZ rezultati** | {data['count']} results for \"{data['query']}\"", ""]
+
+    for d in data["drugs"]:
+        lines.append("---")
+        lines.append("")
+        lines.append(f"### {d.get('name', 'Unknown')}")
+        lines.append("")
+
+        content = d.get("content", "")
+        if content:
+            lines.append(_blockquote(content))
+            lines.append("")
+
+        link_parts = []
+        if d.get("href"):
+            link_parts.append(f"[CBZ]({d['href']})")
+        if d.get("smpc_url"):
+            link_parts.append(f"[SmPC]({d['smpc_url']})")
+        if d.get("info_url"):
+            link_parts.append(f"[Info]({d['info_url']})")
+        if link_parts:
+            lines.append(" | ".join(link_parts))
+            lines.append("")
+
+    return "\n".join(lines)
+
+
+def _format_smpc_md(data: dict) -> str:
+    if not data.get("found"):
+        return f"No SmPC found for \"{data.get('query', '')}\". {data.get('error', '')}"
+
+    lines = []
+    pdf_link = f"[PDF]({data['pdf_url']})" if data.get("pdf_url") else ""
+    lines.append(f"**SmPC: {data.get('drug_name', data.get('query', ''))}** | {pdf_link}")
+    lines.append("")
+
+    for sec_num in sorted(data.get("sections", {}).keys()):
+        sec = data["sections"][sec_num]
+        lines.append("---")
+        lines.append("")
+        lines.append(f"### {sec_num} {sec.get('title', '')}")
+        lines.append("")
+        if sec.get("text"):
+            lines.append(_blockquote(sec["text"]))
+            lines.append("")
+
+    return "\n".join(lines)
+
+
+def _format_prescription_limitations_md(data: dict) -> str:
+    if not data.get("found"):
+        return f"No prescription limitations found for \"{data.get('query', '')}\". {data.get('error', '')}"
+
+    lines = [f"**Omejitve predpisovanja (CBZ)** | {data['count']} results for \"{data['query']}\"", ""]
+
+    for r in data["results"]:
+        lines.append("---")
+        lines.append("")
+        lines.append(f"### {r.get('name', 'Unknown')}")
+        lines.append("")
+
+        meta_parts = []
+        if r.get("atc"):
+            meta_parts.append(f"**ATC**: {r['atc']}")
+        if r.get("regime"):
+            meta_parts.append(f"**Režim**: {r['regime']}")
+        if r.get("source"):
+            meta_parts.append(f"[CBZ]({r['source']})")
+        if meta_parts:
+            lines.append(" | ".join(meta_parts))
+            lines.append("")
+
+        for cl in r.get("classifications", []):
+            lines.append(f"**{cl.get('list_type', '')}** | Lista: {cl.get('lista', '')} | Veljavno od: {cl.get('valid_from', '')}")
+            lines.append("")
+            limitation = cl.get("limitation", "")
+            if limitation:
+                lines.append(_blockquote(limitation))
+            else:
+                lines.append("Brez omejitve.")
+            lines.append("")
+
+        prices = r.get("prices", {})
+        price_parts = []
+        if prices.get("wholesale"):
+            price_parts.append(f"Debelo: {prices['wholesale']}")
+        if prices.get("npv"):
+            price_parts.append(f"NPV: {prices['npv']}")
+        if prices.get("surcharge"):
+            price_parts.append(f"Doplačilo: {prices['surcharge']}")
+        if price_parts:
+            lines.append(f"**Cene**: {' | '.join(price_parts)}")
+            lines.append("")
+
+    return "\n".join(lines)
+
+
+def _wrap(data: dict, formatter) -> ToolResult:
+    return ToolResult(content=formatter(data), structured_content=data)
+
+
+# ── Tool functions ──────────────────────────────────────────────────
+
+def _get_drug_info(query: str) -> ToolResult:
+    """Get drug information from CBZ database."""
     if not query or len(query.strip()) < 2:
-        return {"found": False, "error": "Query must be at least 2 characters"}
-    
+        err = {"found": False, "error": "Query must be at least 2 characters"}
+        return _wrap(err, _format_drug_info_md)
+
     try:
         results = search_drugs_cbz(query.strip())
-        
+
         if not results:
-            return {
-                "found": False,
-                "error": "No drugs found for your query",
-                "query": query
-            }
-        
-        return {
+            err = {"found": False, "error": "No drugs found for your query", "query": query}
+            return _wrap(err, _format_drug_info_md)
+
+        data = {
             "found": True,
             "count": len(results),
             "query": query,
             "drugs": results,
-            "_citation_instruction": (
-                "IMPORTANT: For each drug, you MUST (1) quote the relevant 'content' text snippet "
-                "inside a Markdown blockquote (> ) so it is visually distinct as an unmodified source excerpt, "
-                "(2) show the 'href' as a clickable source link to CBZ, "
-                "(3) show the 'smpc_url' or 'info_url' if available. Present ALL results."
-            ),
         }
+        return _wrap(data, _format_drug_info_md)
     except Exception as e:
-        return {"found": False, "error": str(e)[:100]}
+        err = {"found": False, "error": str(e)[:100]}
+        return _wrap(err, _format_drug_info_md)
 
 
 def _search_drug_urls(query: str, max_results: int = 301) -> List[tuple]:
-    """Search CBZ and return (name, url) pairs without fetching each drug page.
-
-    Returns:
-        List of (drug_name, drug_url) tuples
-    """
+    """Search CBZ and return (name, url) pairs without fetching each drug page."""
     try:
         search_query = f"([TXIMELAS1]=_{quote(query, safe='')}*)"
         url = f"{CBZ_API_BASE}?SearchView&Query={search_query}&SearchOrder=4&SearchMax={max_results}"
@@ -267,10 +357,7 @@ SMPC_CLINICAL_SECTIONS = {
 
 
 def _extract_smpc_urls(html: str) -> Dict[str, str]:
-    """Extract SmPC PDF URLs from CBZ search results HTML.
-
-    Returns a dict mapping drug page URLs to absolute SmPC PDF URLs.
-    """
+    """Extract SmPC PDF URLs from CBZ search results HTML."""
     soup = BeautifulSoup(html, "html.parser")
     smpc_map: Dict[str, str] = {}
 
@@ -282,7 +369,6 @@ def _extract_smpc_urls(html: str) -> Dict[str, str]:
         smpc_path = m.group(1)
         smpc_url = f"https://www.cbz.si{smpc_path}" if smpc_path.startswith("/") else smpc_path
 
-        # Walk up to find the enclosing element that also contains the drug link
         parent = btn
         drug_href = None
         for _ in range(10):
@@ -304,11 +390,7 @@ def _extract_smpc_urls(html: str) -> Dict[str, str]:
 
 
 def _extract_info_url_from_detail_page(html: str) -> Optional[str]:
-    """Extract 'Informacije o zdravilu' (EMA PDF) URL from a drug detail page.
-
-    Looks for <input class='button_p_zgo' value='Informacije o zdravilu'>
-    and extracts the URL from its onclick attribute.
-    """
+    """Extract 'Informacije o zdravilu' (EMA PDF) URL from a drug detail page."""
     soup = BeautifulSoup(html, "html.parser")
     btn = soup.find("input", class_="button_p_zgo", attrs={"value": "Informacije o zdravilu"})
     if not btn:
@@ -342,34 +424,22 @@ def _fetch_smpc_pdf(url: str) -> Optional[bytes]:
 
 
 def _parse_smpc_sections(pdf_bytes: bytes) -> Dict[str, Dict[str, str]]:
-    """Extract text from SmPC PDF and split into numbered sections.
-
-    Handles two common SmPC heading formats:
-    - Same line:  ``\\n4.1 Terapevtske indikacije\\n``
-    - Split line: ``\\n4.1 \\n Terapevtske indikacije\\n``
-
-    Filters out inline references like "poglavje 4.4" that aren't real headings.
-
-    Returns dict mapping section number to {"title": ..., "text": ...}.
-    """
+    """Extract text from SmPC PDF and split into numbered sections."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     full_text = ""
     for page in doc:
         full_text += page.get_text()
     doc.close()
 
-    # Match section headings — number at line start, title on same or next line
-    # Pattern: \n{num}\s*\n\s*{title}\n  OR  \n{num} {title}\n
     header_pattern = re.compile(
-        r"\n(\d+\.[\d.]*)\s*\n\s*([A-ZČŠŽĆĐ][^\n]+)"  # title on next line (uppercase start)
+        r"\n(\d+\.[\d.]*)\s*\n\s*([A-ZČŠŽĆĐ][^\n]+)"
         r"|"
-        r"\n(\d+\.[\d.]*)\s+([A-ZČŠŽĆĐ][^\n]+)",  # title on same line
+        r"\n(\d+\.[\d.]*)\s+([A-ZČŠŽĆĐ][^\n]+)",
         re.MULTILINE,
     )
 
     raw_matches = []
     for m in header_pattern.finditer(full_text):
-        # Determine which alternative matched
         if m.group(1) is not None:
             num = m.group(1).rstrip(".")
             title = m.group(2).strip()
@@ -377,12 +447,10 @@ def _parse_smpc_sections(pdf_bytes: bytes) -> Dict[str, Dict[str, str]]:
             num = m.group(3).rstrip(".")
             title = m.group(4).strip()
 
-        # Skip inline references: preceded by "poglavje", "poglavja", "poglavji"
         pre = full_text[max(0, m.start() - 30):m.start()]
         if re.search(r"poglavj[aei]?\s*$", pre, re.IGNORECASE):
             continue
 
-        # Only keep the first occurrence of each section number
         if any(prev_num == num for prev_num, _, _ in raw_matches):
             continue
 
@@ -390,7 +458,6 @@ def _parse_smpc_sections(pdf_bytes: bytes) -> Dict[str, Dict[str, str]]:
 
     sections: Dict[str, Dict[str, str]] = {}
     for i, (num, title, pos) in enumerate(raw_matches):
-        # Text starts after the title line
         title_end = full_text.index(title, pos) + len(title)
         next_pos = raw_matches[i + 1][2] if i + 1 < len(raw_matches) else len(full_text)
         section_text = full_text[title_end:next_pos].strip()
@@ -399,21 +466,11 @@ def _parse_smpc_sections(pdf_bytes: bytes) -> Dict[str, Dict[str, str]]:
     return sections
 
 
-def _get_smpc(query: str) -> Dict[str, Any]:
-    """Get SmPC (Summary of Product Characteristics) for a drug.
-
-    Downloads the SmPC PDF from CBZ, extracts clinically relevant sections
-    (indications, dosing, contraindications, interactions, side effects, etc.).
-
-    USE THIS TOOL WHEN:
-    - You need detailed clinical information about a drug
-    - Looking up indications, dosing, contraindications, or interactions
-    - Checking pregnancy/lactation safety
-    - Getting pharmacological properties
-    - Needing authoritative drug information from the SmPC document
-    """
+def _get_smpc(query: str) -> ToolResult:
+    """Get SmPC (Summary of Product Characteristics) for a drug."""
     if not query or len(query.strip()) < 2:
-        return {"found": False, "error": "Query must be at least 2 characters"}
+        err = {"found": False, "error": "Query must be at least 2 characters"}
+        return _wrap(err, _format_smpc_md)
 
     try:
         search_query = f"([TXIMELAS1]=_{quote(query.strip(), safe='')}*)"
@@ -423,22 +480,18 @@ def _get_smpc(query: str) -> Dict[str, Any]:
         response.raise_for_status()
         html = response.text
 
-        # Extract SmPC URLs and drug URLs from the same search results page
         smpc_map = _extract_smpc_urls(html)
 
         soup = BeautifulSoup(html, "html.parser")
 
-        # Determine PDF source: SmPC (from search results) or EMA fallback
         source = "smpc"
         pdf_url = None
         drug_name = query
 
         if smpc_map:
-            # Use the first SmPC match
             drug_url = next(iter(smpc_map))
             pdf_url = smpc_map[drug_url]
 
-            # Get drug name from the search results page
             for link in soup.find_all("a", href=re.compile(r"opendocument")):
                 href = link.get("href", "").strip()
                 if href.startswith("/"):
@@ -447,7 +500,6 @@ def _get_smpc(query: str) -> Dict[str, Any]:
                     drug_name = link.get_text(strip=True)
                     break
         else:
-            # Fallback: check drug detail pages for "Informacije o zdravilu" (EMA PDF)
             for link in soup.find_all("a", href=re.compile(r"opendocument")):
                 href = link.get("href", "").strip()
                 if href.startswith("/"):
@@ -463,62 +515,44 @@ def _get_smpc(query: str) -> Dict[str, Any]:
                     break
 
         if not pdf_url:
-            return {
-                "found": False,
-                "query": query,
-                "error": "No SmPC document found for this drug",
-            }
+            err = {"found": False, "query": query, "error": "No SmPC document found for this drug"}
+            return _wrap(err, _format_smpc_md)
 
-        # Fetch and parse PDF
         pdf_bytes = _fetch_smpc_pdf(pdf_url)
         if not pdf_bytes:
-            return {
-                "found": False,
-                "query": query,
-                "drug_name": drug_name,
-                "pdf_url": pdf_url,
-                "error": "Failed to download SmPC PDF",
-            }
+            err = {"found": False, "query": query, "drug_name": drug_name, "pdf_url": pdf_url, "error": "Failed to download SmPC PDF"}
+            return _wrap(err, _format_smpc_md)
 
         all_sections = _parse_smpc_sections(pdf_bytes)
 
-        # Filter to clinically relevant sections
         clinical_sections = {}
         for sec_num, sec_data in all_sections.items():
             if sec_num in SMPC_CLINICAL_SECTIONS:
                 clinical_sections[sec_num] = sec_data
 
-        return {
+        data = {
             "found": True,
             "source": source,
             "query": query,
             "drug_name": drug_name,
             "pdf_url": pdf_url,
             "sections": clinical_sections,
-            "_citation_instruction": (
-                "IMPORTANT: For each section, you MUST (1) quote the relevant text verbatim from the section content "
-                "inside a Markdown blockquote (> ) so it is visually distinct as an unmodified source excerpt, "
-                "(2) show the pdf_url as a clickable link to the SmPC document, "
-                "(3) reference the section number and title. Present ALL clinically relevant sections."
-            ),
         }
+        return _wrap(data, _format_smpc_md)
 
     except Exception as e:
-        return {"found": False, "query": query, "error": str(e)[:200]}
+        err = {"found": False, "query": query, "error": str(e)[:200]}
+        return _wrap(err, _format_smpc_md)
 
 
 def _extract_basic_info(soup: BeautifulSoup) -> Dict[str, str]:
-    """Extract drug name, ATC code, and prescribing regime from a CBZ drug page.
-
-    CBZ uses textbarva0/textbarva01 cell pairs for labeled fields.
-    """
+    """Extract drug name, ATC code, and prescribing regime from a CBZ drug page."""
     info = {"name": "", "atc": "", "regime": ""}
 
     title = soup.find("title")
     if title:
         info["name"] = title.get_text(strip=True)
 
-    # Scan textbarva0 label cells paired with textbarva01 value cells
     for td in soup.find_all("td", class_="textbarva0"):
         label = td.get_text(strip=True)
         val_td = td.find_next_sibling("td", class_="textbarva01")
@@ -535,12 +569,7 @@ def _extract_basic_info(soup: BeautifulSoup) -> Dict[str, str]:
 
 
 def _extract_classifications(soup: BeautifulSoup) -> List[Dict[str, str]]:
-    """Extract classification sections (Razvrstitev zdravila) from a CBZ drug page.
-
-    CBZ structure: textbarva02 section headers followed by rows of ts-7-1 (label) /
-    ts-7-2 (value) cell pairs. The limitation text often appears in a separate row
-    right after the "Omejitve predpis." row, with an empty ts-7-1 label.
-    """
+    """Extract classification sections (Razvrstitev zdravila) from a CBZ drug page."""
     classifications = []
 
     section_markers = soup.find_all("td", class_="textbarva02")
@@ -564,12 +593,8 @@ def _extract_classifications(soup: BeautifulSoup) -> List[Dict[str, str]]:
             "valid_from": "",
         }
 
-        # Collect all ts-7-1/ts-7-2 pairs after this marker until the next
-        # textbarva02 section header
         saw_omejitve = False
         for elem in marker.find_all_next("td", class_="ts-7-1"):
-            # Stop if we've crossed into the next section
-            # Check if there's a textbarva02 between the marker and this element
             prev_section = elem.find_previous("td", class_="textbarva02")
             if prev_section and prev_section != marker:
                 break
@@ -582,12 +607,10 @@ def _extract_classifications(soup: BeautifulSoup) -> List[Dict[str, str]]:
                 classification["lista"] = value
                 saw_omejitve = False
             elif "Omejitve" in label:
-                # The value may be here or in the next row with empty label
                 if value:
                     classification["limitation"] = value
                 saw_omejitve = True
             elif saw_omejitve and not label and value:
-                # Continuation row: limitation text with empty label
                 classification["limitation"] = value
                 saw_omejitve = False
             elif "Velja od" in label:
@@ -602,11 +625,7 @@ def _extract_classifications(soup: BeautifulSoup) -> List[Dict[str, str]]:
 
 
 def _extract_prices(soup: BeautifulSoup) -> Dict[str, str]:
-    """Extract price information from a CBZ drug page.
-
-    CBZ uses textbarva0/textbarva01 cell pairs for price fields like
-    "Cena na debelo", "NPV", "Informativno doplačilo", "Vrsta zdravila".
-    """
+    """Extract price information from a CBZ drug page."""
     prices = {
         "wholesale": "",
         "npv": "",
@@ -639,7 +658,7 @@ def _fetch_drug_page_cached(url: str) -> Optional[str]:
     if is_cache_fresh(cache_key, max_age_hours=DRUG_PAGE_CACHE_TTL):
         cached = read_cache(cache_key)
         if cached and isinstance(cached, list) and cached:
-            return cached[0]  # stored as [html_string]
+            return cached[0]
 
     try:
         response = requests.get(url, timeout=10)
@@ -652,31 +671,19 @@ def _fetch_drug_page_cached(url: str) -> Optional[str]:
         return None
 
 
-def _get_prescription_limitations(query: str) -> Dict[str, Any]:
-    """Get prescription limitations and classification data for a drug from CBZ.
-
-    Searches CBZ, fetches the drug detail pages, and extracts structured data about:
-    - ZZZS list classification (Lista)
-    - Prescribing limitations (Omejitve predpisovanja)
-    - Prices (wholesale, NPV, surcharge)
-    - ATC code and prescribing regime
-
-    Limits to first 5 matching drugs to avoid excessive HTTP requests.
-    """
+def _get_prescription_limitations(query: str) -> ToolResult:
+    """Get prescription limitations and classification data for a drug from CBZ."""
     if not query or len(query.strip()) < 2:
-        return {"found": False, "error": "Query must be at least 2 characters"}
+        err = {"found": False, "error": "Query must be at least 2 characters"}
+        return _wrap(err, _format_prescription_limitations_md)
 
     try:
         drug_urls = _search_drug_urls(query.strip())
 
         if not drug_urls:
-            return {
-                "found": False,
-                "error": "No drugs found for your query",
-                "query": query,
-            }
+            err = {"found": False, "error": "No drugs found for your query", "query": query}
+            return _wrap(err, _format_prescription_limitations_md)
 
-        # Limit to first 5 results
         drug_urls = drug_urls[:5]
 
         results = []
@@ -688,7 +695,6 @@ def _get_prescription_limitations(query: str) -> Dict[str, Any]:
             try:
                 soup = BeautifulSoup(html, "html.parser")
 
-                # Remove scripts/styles
                 for tag in soup(["script", "style"]):
                     tag.decompose()
 
@@ -709,26 +715,19 @@ def _get_prescription_limitations(query: str) -> Dict[str, Any]:
                 continue
 
         if not results:
-            return {
-                "found": False,
-                "error": "Found drug URLs but failed to extract data",
-                "query": query,
-            }
+            err = {"found": False, "error": "Found drug URLs but failed to extract data", "query": query}
+            return _wrap(err, _format_prescription_limitations_md)
 
-        return {
+        data = {
             "found": True,
             "count": len(results),
             "query": query,
             "results": results,
-            "_citation_instruction": (
-                "IMPORTANT: For each result, you MUST (1) quote the 'limitation' text from classifications verbatim "
-                "inside a Markdown blockquote (> ) so it is visually distinct as an unmodified source excerpt, "
-                "(2) show the 'source' URL as a clickable link to CBZ, "
-                "(3) show list type, ATC code, prices. Present ALL results."
-            ),
         }
+        return _wrap(data, _format_prescription_limitations_md)
     except Exception as e:
-        return {"found": False, "error": str(e)[:100]}
+        err = {"found": False, "error": str(e)[:100]}
+        return _wrap(err, _format_prescription_limitations_md)
 
 
 if __name__ == "__main__":
@@ -737,13 +736,10 @@ if __name__ == "__main__":
     test_query = "Plivit D3"
     info = _get_drug_info(test_query)
     print(f"\nQuery: {test_query}")
-    print(f"Found: {info['found']}")
+    print(f"Found: {info}")
 
     print("\nTesting prescription limitations...")
     test_query2 = "amoksiklav"
     limitations = _get_prescription_limitations(test_query2)
     print(f"\nQuery: {test_query2}")
-    print(f"Found: {limitations['found']}")
-    if limitations.get("results"):
-        for r in limitations["results"]:
-            print(f"  {r['name']}: {len(r['classifications'])} classifications")
+    print(f"Found: {limitations}")
