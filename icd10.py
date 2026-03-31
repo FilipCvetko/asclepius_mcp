@@ -232,6 +232,10 @@ def _lookup_by_code(code: str) -> Dict[str, Any]:
         "count": len(results),
         "query": code,
         "results": results[:20],
+        "_citation_instruction": (
+            "IMPORTANT: For each result, show the ICD-10 code and Slovenian description. "
+            "Show the match type (exact/prefix). Present ALL results."
+        ),
     }
 
 
@@ -261,6 +265,10 @@ def _search_by_description(query: str) -> Dict[str, Any]:
         "count": len(results[:20]),
         "query": query,
         "results": results[:20],
+        "_citation_instruction": (
+            "IMPORTANT: For each result, show the ICD-10 code and Slovenian description. "
+            "Show the confidence score. Present ALL results."
+        ),
     }
 
 

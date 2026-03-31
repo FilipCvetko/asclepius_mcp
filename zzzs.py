@@ -247,6 +247,12 @@ def _get_zzzs_limitation(query: str) -> Dict[str, Any]:
         "count": len(results[:20]),
         "query": query,
         "results": results[:20],
+        "_citation_instruction": (
+            "IMPORTANT: For each result, you MUST (1) quote the 'limitation' text verbatim "
+            "inside a Markdown blockquote (> ) so it is visually distinct as an unmodified source excerpt, "
+            "(2) show the drug name, list type, and ATC code, "
+            "(3) show the confidence score. Present ALL results."
+        ),
     }
 
 
@@ -284,6 +290,12 @@ def _get_zzzs_prescribing_rules(topic: str) -> Dict[str, Any]:
         "count": len(results[:10]),
         "query": topic,
         "results": results[:10],
+        "_citation_instruction": (
+            "IMPORTANT: For each result, you MUST (1) quote the relevant portion of the 'text' field verbatim "
+            "inside a Markdown blockquote (> ) so it is visually distinct as an unmodified source excerpt, "
+            "(2) show the title, section, and source_url as a clickable link, "
+            "(3) show the confidence score. Present ALL results."
+        ),
     }
 
 
@@ -325,6 +337,11 @@ def _browse_zzzs_rules(category: str) -> Dict[str, Any]:
         "count": len(results),
         "category": category,
         "results": results,
+        "_citation_instruction": (
+            "IMPORTANT: For each result, you MUST (1) quote the relevant portion of the 'text' field verbatim "
+            "inside a Markdown blockquote (> ) so it is visually distinct as an unmodified source excerpt, "
+            "(2) show the title, article number, and source_url as a clickable link. Present ALL results."
+        ),
     }
 
 

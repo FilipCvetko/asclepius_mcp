@@ -237,4 +237,10 @@ def _get_spa_eligibility(query: str) -> Dict[str, Any]:
             "B": "Sekundarna dejavnost – rehabilitacija brez negovalnega oddelka",
         },
         "source_url": SOURCE_URL,
+        "_citation_instruction": (
+            "IMPORTANT: You MUST (1) show the source_url as a clickable link to the ZZZS PDF document, "
+            "(2) present all matching spas with their eligibility level (A/B) and standard descriptions "
+            "inside a Markdown blockquote (> ) so source data is visually distinct from your commentary, "
+            "(3) explain what A and B levels mean using the legend. Present ALL results."
+        ),
     }

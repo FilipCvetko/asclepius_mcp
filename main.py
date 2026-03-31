@@ -18,7 +18,39 @@ from templates import initialize_templates, _get_template, _list_templates, _for
 
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
-mcp = FastMCP("medical-tools")
+mcp = FastMCP(
+    "medical-tools",
+    instructions="""\
+You are connected to the Asclepius medical reference server used by a clinician in Slovenia.
+
+CITATION REQUIREMENTS — ALWAYS follow these rules when presenting results from ANY tool:
+
+1. **Always cite sources.** Every piece of information MUST include its source. Use the `reference` field if present, otherwise construct from `doc_title`, `page_number`, and `source_url`.
+
+2. **Always show source URLs.** Display clickable source URLs (`source_url`, `source`, `pdf_url`, `href`) so the clinician can verify information. Format: [Document Title, p. X](url)
+
+3. **Always quote the source text in a blockquote.** Include the verbatim text snippet (`text`, `content`, `limitation`) from which the answer is derived. ALWAYS wrap source text in a Markdown blockquote (`> `) so it is visually distinct from your own commentary. This is critical — the blockquote signals to the clinician that the content is an unmodified excerpt from the original source, not LLM-generated text. Never paraphrase inside the blockquote.
+
+4. **Show confidence/relevance.** When scores are present (`relevance`, `confidence`), mention them.
+
+5. **Present ALL results** with their sources — do not summarize away individual results.
+
+6. **Format for clinical use:**
+   - Drug info: Name, indication, dosing, limitations, ZZZS status, source link
+   - ZZZS rules: Article number, title, key text verbatim in blockquote, source PDF link
+   - ICD-10: Code + Slovenian description
+   - Contacts: Name, phone number
+   - Spa eligibility: Spa name, standard type, level (A/B), source PDF link
+
+7. **Slovenian context.** Keep medical terms in Slovenian where the source uses them.
+
+Example citation format:
+
+> Zdravilo X je uvrščeno na pozitivno listo ZZZS z omejitvijo predpisovanja...
+
+— 📄 Pravilnik OZZ, str. 42 ([vir](https://api.zzzs.si/...))
+""",
+)
 
 # Track module status for health check
 _module_status = {}
@@ -81,6 +113,8 @@ def get_phone_number(query: str) -> dict:
 
     The tool understands medical terms, hospital names, and emergency situations.
     It will return ALL relevant matches with similarity scores above 0.33.
+
+    OUTPUT: Present ALL contacts with name, phone number, notes, and confidence score.
     """
     return _get_phone_number(query)
 
@@ -101,6 +135,8 @@ def get_drug_info(query: str) -> dict:
     - Searching for drug alternatives
     - Searching for prescribing limitations by the insurance company - ZZZS
 
+    OUTPUT: For each drug, quote the 'content' text snippet verbatim, show the CBZ source link (href),
+    and include SmPC/info URLs when available. Present ALL results.
     """
 
     return _get_drug_info(query)
@@ -125,6 +161,9 @@ def get_smpc(query: str) -> dict:
     • "amoksiklav" → Full SmPC sections for Amoksiklav
     • "ibuprofen" → Indications, dosing, interactions for Ibuprofen
     • "pantoprazol" → Detailed clinical data for pantoprazole
+
+    OUTPUT: Quote relevant text from each SmPC section verbatim. Show the pdf_url as a clickable link.
+    Reference section numbers (e.g. 4.1 Indikacije, 4.2 Odmerjanje). Present ALL sections.
     """
     return _get_smpc(query)
 
@@ -146,6 +185,8 @@ def get_icd10_code(query: str) -> dict:
     • "glavobol" → R51 Glavobol
     • "diabetes" → E10-E14 codes
     • "I10" → Esencialna (primarna) hipertenzija
+
+    OUTPUT: Show ICD-10 code + Slovenian description for each result. Show confidence scores.
     """
     return _get_icd10(query)
 
@@ -165,6 +206,8 @@ def get_zzzs_drug_limitation(query: str) -> dict:
     • "amoksicilin" → Prescribing limitations for amoxicillin
     • "pantoprazol" → List status and limitations for pantoprazole
     • "atorvastatin" → Statin prescribing rules
+
+    OUTPUT: Quote the 'limitation' text verbatim for each drug. Show list type, ATC code, confidence.
     """
     return _get_zzzs_limitation(query)
 
@@ -192,6 +235,8 @@ def browse_zzzs_rules(category: str) -> dict:
     • "pripomočki" → All medical device articles (V/*)
     • "zdravila" → Drug coverage articles (IV/8)
     • "napotnice specialist" → Referral procedure articles (XIII/6)
+
+    OUTPUT: Quote the 'text' field verbatim for each article. Show title, article number, and source_url as a clickable link.
     """
     return _browse_zzzs_rules(category)
 
@@ -233,6 +278,9 @@ def search_zzzs_documents(query: str, category: str = None) -> dict:
     • "zobozdravstvo obračun" → Dental billing procedures
 
     Optional: filter by category name to narrow results.
+
+    OUTPUT: For each result, quote the 'text' field verbatim, show the 'reference' as a citation
+    with clickable source_url, and show the relevance score. Present ALL results.
     """
     return _search_egradiva(query, category=category)
 
@@ -278,6 +326,9 @@ def get_spa_eligibility(query: str) -> dict:
     • "Terme Čatež" → All standards covered by that spa
     • "kožne bolezni" → Spas for skin diseases (tip 7)
     • "nevrološke" → Spas for neurological rehab (tip 4)
+
+    OUTPUT: Show source_url as a clickable link to the ZZZS PDF. Present ALL matching spas
+    with eligibility level (A/B) and standard descriptions. Explain what A and B levels mean.
     """
     return _get_spa_eligibility(query)
 
@@ -332,6 +383,9 @@ def get_prescription_limitations(query: str) -> dict:
     • "amoksiklav" → Classification, limitations, prices for Amoksiklav
     • "pantoprazol" → List status and limitations for pantoprazole
     • "rosuvastatin" → Statin classification and limitations
+
+    OUTPUT: Quote the 'limitation' text from classifications verbatim. Show the CBZ source URL
+    as a clickable link, list type, ATC code, and prices. Present ALL results.
     """
     return _get_prescription_limitations(query)
 

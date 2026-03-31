@@ -201,6 +201,10 @@ def _get_phone_number(query: str) -> Dict[str, Any]:
             "found": True,
             "count": len(matching_contacts),
             "contacts": matching_contacts,
+            "_citation_instruction": (
+                "IMPORTANT: For each contact, show the name, phone number, and notes. "
+                "Show the confidence score. Present ALL matching contacts."
+            ),
         }
     except Exception as e:
         return {"found": False, "error": str(e)[:100]}

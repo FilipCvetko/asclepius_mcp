@@ -212,6 +212,12 @@ def _get_drug_info(query: str) -> Dict[str, Any]:
             "count": len(results),
             "query": query,
             "drugs": results,
+            "_citation_instruction": (
+                "IMPORTANT: For each drug, you MUST (1) quote the relevant 'content' text snippet "
+                "inside a Markdown blockquote (> ) so it is visually distinct as an unmodified source excerpt, "
+                "(2) show the 'href' as a clickable source link to CBZ, "
+                "(3) show the 'smpc_url' or 'info_url' if available. Present ALL results."
+            ),
         }
     except Exception as e:
         return {"found": False, "error": str(e)[:100]}
@@ -489,6 +495,12 @@ def _get_smpc(query: str) -> Dict[str, Any]:
             "drug_name": drug_name,
             "pdf_url": pdf_url,
             "sections": clinical_sections,
+            "_citation_instruction": (
+                "IMPORTANT: For each section, you MUST (1) quote the relevant text verbatim from the section content "
+                "inside a Markdown blockquote (> ) so it is visually distinct as an unmodified source excerpt, "
+                "(2) show the pdf_url as a clickable link to the SmPC document, "
+                "(3) reference the section number and title. Present ALL clinically relevant sections."
+            ),
         }
 
     except Exception as e:
@@ -708,6 +720,12 @@ def _get_prescription_limitations(query: str) -> Dict[str, Any]:
             "count": len(results),
             "query": query,
             "results": results,
+            "_citation_instruction": (
+                "IMPORTANT: For each result, you MUST (1) quote the 'limitation' text from classifications verbatim "
+                "inside a Markdown blockquote (> ) so it is visually distinct as an unmodified source excerpt, "
+                "(2) show the 'source' URL as a clickable link to CBZ, "
+                "(3) show list type, ATC code, prices. Present ALL results."
+            ),
         }
     except Exception as e:
         return {"found": False, "error": str(e)[:100]}

@@ -99,4 +99,10 @@ def _search_egradiva(query: str, n_results: int = 8, category: Optional[str] = N
         "count": len(items),
         "query": query,
         "results": items,
+        "_citation_instruction": (
+            "IMPORTANT: For each result, you MUST (1) quote the relevant portion of the 'text' field verbatim "
+            "inside a Markdown blockquote (> ) so it is visually distinct as an unmodified source excerpt, "
+            "(2) display the 'reference' field as a citation with clickable source_url, "
+            "(3) show the relevance score. Present ALL results, not a summary."
+        ),
     }
