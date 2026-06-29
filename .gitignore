@@ -8,3 +8,6 @@ data/egradiva_errors.log
 *.emf
 *.wmf
 *.log
+*.pdf
+*.docx
+*.doc
