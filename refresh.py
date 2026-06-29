@@ -245,7 +245,12 @@ def _refresh_sifranti(report: dict) -> None:
     if not content:
         return
     newer = (leto, zap) > (cur.get("leto", 0), cur.get("zap_st", 0))
-    if not newer:
+    # Also rebuild for the SAME objava when the loaded catalog is missing derived data — e.g. after
+    # a code upgrade that adds the dejavnost index. paths.data_path prefers the writable volume copy
+    # over the freshly-baked image copy, so without this a new derivation would never reach the
+    # volume until ZZZS happens to publish a new objava. This makes the volume self-heal.
+    needs_rebuild = not getattr(sifranti, "DEJAVNOSTI", {})
+    if not newer and not needs_rebuild:
         report["sifranti"] = {"changed": False, "objava": f"{cur.get('leto')}/{cur.get('zap_st')}"}
         return
     fs.extract_and_save(leto, zap, content)        # writes data/sifranti/*.xml + latest.json
@@ -253,9 +258,13 @@ def _refresh_sifranti(report: dict) -> None:
     out = STATE_DIR / "sifrant_catalog.json"
     _save_json(out, cat)
     sifranti.initialize_sifranti()                 # hot-reload from the volume copy
-    report["sifranti"] = {"changed": True, "from": f"{cur.get('leto')}/{cur.get('zap_st')}",
+    di = cat.get("dejavnost_index", {})
+    report["sifranti"] = {"changed": bool(newer),
+                          "rebuilt_for_derivation": bool(needs_rebuild and not newer),
+                          "from": f"{cur.get('leto')}/{cur.get('zap_st')}",
                           "to": f"{leto}/{zap}", "datum": cat["objava"].get("datum"),
-                          "komentar": cat["objava"].get("komentar", "")}
+                          "komentar": cat["objava"].get("komentar", ""),
+                          "dejavnosti": len(di.get("dejavnosti", {}))}
 
 
 def _refresh_mtp(report: dict) -> None:

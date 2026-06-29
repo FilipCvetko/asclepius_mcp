@@ -38,6 +38,8 @@ COPY scripts/build_egradiva_index.py scripts/fetch_sifranti.py scripts/build_sif
 # Copy small data files needed at runtime (+ MTP exclusion/timska companions for refresh rebuilds)
 COPY data/icd10_codes.json data/zzzs_rules.json data/sifrant_catalog.json data/mtp_catalog.json data/
 COPY data/mtp_companions/ data/mtp_companions/
+# Curated per-dejavnost orientation notes surfaced by get_sifra's dejavnost scoping
+COPY data/dejavnost_context/ data/dejavnost_context/
 
 # Copy ChromaDB as seed for initial volume population
 COPY data/chromadb/ /seed/chromadb/
