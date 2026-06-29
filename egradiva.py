@@ -13,9 +13,27 @@ COLLECTION_NAME = "zzzs_egradiva"
 COLLECTION = None
 EMBED_FN = None
 
+# Recency-prioritised retrieval: pull a larger candidate pool, then float newer documents up so the
+# most up-to-date material takes priority (the periodic refresh stamps each chunk with `doc_date`).
+RECENCY_WEIGHT = float(os.environ.get("EGRADIVA_RECENCY_WEIGHT", "0.2"))
+_POOL_FACTOR = 5
 
-def initialize_egradiva() -> None:
-    """Load pre-built ChromaDB collection. Must run build_egradiva_index.py first."""
+
+def _date_ord(s: str):
+    import datetime
+    try:
+        return datetime.date.fromisoformat((s or "")[:10]).toordinal()
+    except Exception:
+        return None
+
+
+def initialize_egradiva(embed_fn=None, client=None) -> None:
+    """Load pre-built ChromaDB collection. Must run build_egradiva_index.py first.
+
+    `embed_fn` and `client` may be shared singletons (one model + one PersistentClient
+    for all ChromaDB-backed modules) — ChromaDB allows only one client per path, so
+    parallel per-module clients race and fail.
+    """
     global COLLECTION, EMBED_FN
 
     if not CHROMA_DIR.exists():
@@ -27,8 +45,8 @@ def initialize_egradiva() -> None:
         import chromadb
         from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 
-        EMBED_FN = SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
-        client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+        EMBED_FN = embed_fn or SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
+        client = client or chromadb.PersistentClient(path=str(CHROMA_DIR))
         COLLECTION = client.get_collection(name=COLLECTION_NAME, embedding_function=EMBED_FN)
         print(f"Loaded e-gradiva index: {COLLECTION.count()} chunks")
     except Exception as e:
@@ -69,14 +87,14 @@ def _format_egradiva_md(data: dict) -> str:
             lines.append(_blockquote(r["text"]))
             lines.append("")
 
-        # Source link
+        # Source citation (inline, next to the chunk it supports)
         source_url = r.get("source_url", "")
         page = r.get("page_number", 0)
         if source_url:
             link_text = title
             if page:
                 link_text += f", str. {page}"
-            lines.append(f"[{link_text}]({source_url})")
+            lines.append(f"**Vir:** [{link_text}]({source_url})")
             lines.append("")
 
     return "\n".join(lines)
@@ -98,11 +116,8 @@ def _search_egradiva(query: str, n_results: int = 8, category: Optional[str] = N
         where_filter = {"category": {"$contains": category.strip()}}
 
     try:
-        results = COLLECTION.query(
-            query_texts=[query],
-            n_results=n_results,
-            where=where_filter,
-        )
+        pool = min(max(n_results * _POOL_FACTOR, n_results), 50)   # larger pool to re-rank
+        results = COLLECTION.query(query_texts=[query], n_results=pool, where=where_filter)
     except Exception as e:
         err = {"found": False, "error": f"Search failed: {e}"}
         return ToolResult(content=_format_egradiva_md(err), structured_content=err)
@@ -111,41 +126,43 @@ def _search_egradiva(query: str, n_results: int = 8, category: Optional[str] = N
         err = {"found": False, "error": "No matching documents found", "query": query}
         return ToolResult(content=_format_egradiva_md(err), structured_content=err)
 
-    items = []
+    raw = []
     for i, doc_text in enumerate(results["documents"][0]):
         meta = results["metadatas"][0][i] if results["metadatas"] else {}
         distance = results["distances"][0][i] if results["distances"] else None
-        relevance = round(1.0 - distance, 4) if distance is not None else None
-
+        relevance = round(1.0 - distance, 4) if distance is not None else 0.0
         source_url = meta.get("file_url", "")
         page_number = meta.get("page_number", 0)
         doc_title = meta.get("doc_title", "")
-        reference = ""
-        if source_url:
-            ref_parts = []
-            if doc_title:
-                ref_parts.append(doc_title)
-            if page_number:
-                ref_parts.append(f"str. {page_number}")
-            reference = f"📄 {', '.join(ref_parts)} — {source_url}" if ref_parts else f"📄 {source_url}"
-
-        items.append({
-            "text": doc_text,
-            "relevance": relevance,
-            "doc_title": doc_title,
-            "category": meta.get("category", ""),
-            "section": meta.get("section", ""),
-            "article_title": meta.get("article_title", ""),
-            "source_url": source_url,
-            "page_number": page_number,
-            "reference": reference,
-            "source": meta.get("source", "ZZZS e-gradiva"),
+        ref_parts = [p for p in (doc_title, f"str. {page_number}" if page_number else "") if p]
+        reference = (f"📄 {', '.join(ref_parts)} — {source_url}" if ref_parts else f"📄 {source_url}") if source_url else ""
+        raw.append({
+            "text": doc_text, "relevance": relevance, "doc_title": doc_title,
+            "category": meta.get("category", ""), "section": meta.get("section", ""),
+            "article_title": meta.get("article_title", ""), "source_url": source_url,
+            "page_number": page_number, "doc_date": meta.get("doc_date", ""),
+            "reference": reference, "source": meta.get("source", "ZZZS e-gradiva"),
         })
 
-    data = {
-        "found": True,
-        "count": len(items),
-        "query": query,
-        "results": items,
-    }
+    # Blend similarity with recency (normalised over the pool); newer → higher. Undated = neutral.
+    ords = [_date_ord(r["doc_date"]) for r in raw]
+    valid = [o for o in ords if o is not None]
+    lo, hi = (min(valid), max(valid)) if valid else (0, 0)
+    for r, o in zip(raw, ords):
+        rnorm = ((o - lo) / (hi - lo)) if (o is not None and hi > lo) else 0.0
+        r["_score"] = r["relevance"] + RECENCY_WEIGHT * rnorm
+    raw.sort(key=lambda r: -r["_score"])
+
+    items, seen = [], set()                         # dedupe exact repeats (title+page), keep newest/best
+    for r in raw:
+        key = (r["doc_title"], r["page_number"])
+        if key in seen:
+            continue
+        seen.add(key)
+        r.pop("_score", None)
+        items.append(r)
+        if len(items) >= n_results:
+            break
+
+    data = {"found": True, "count": len(items), "query": query, "results": items}
     return ToolResult(content=_format_egradiva_md(data), structured_content=data)

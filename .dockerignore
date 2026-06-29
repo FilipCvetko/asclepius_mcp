@@ -8,5 +8,14 @@ cache/
 data/egradiva_files/
 data/egradiva_manifest.json
 data/egradiva_errors.log
+data/sifranti/
+data/mtp/
+data/billing_files/
 scripts/
+# …but ship the few scripts the in-process refresh imports
+!scripts/build_egradiva_index.py
+!scripts/fetch_sifranti.py
+!scripts/build_sifrant_catalog.py
+!scripts/fetch_mtp.py
+!scripts/build_mtp_catalog.py
 .vscode/

@@ -31,6 +31,19 @@ CHUNK_OVERLAP = 200
 ARTICLE_MAX_CHARS = 2000
 ARTICLE_PATTERN = re.compile(r"\d+\.?[a-z]?\s*člen\b", re.IGNORECASE)
 
+# Recall fix: OCR scanned PDFs/.tif (Slovenian tesseract, same approach as ocr_uredba.py) and
+# extract legacy .doc. Set EGRADIVA_OCR=0 (or --no-ocr) for a fast rebuild without OCR.
+import os as _os
+import collections as _collections
+OCR_ENABLED = _os.environ.get("EGRADIVA_OCR", "1") != "0"
+OCR_DPI = 200
+MIN_TEXT_CHARS = 50          # below this a page/doc is treated as empty/scanned
+# Don't OCR documents larger than this: the few huge fully-scanned PDFs are annual reports /
+# finančni načrti / archives (low clinical value) and OCR'ing hundreds of pages would stall the
+# build for hours. The clinically valuable scanned docs (okrožnice/navodila) are short.
+OCR_MAX_PAGES = int(_os.environ.get("EGRADIVA_OCR_MAX_PAGES", "40"))
+EXTRACT_STATS = _collections.Counter()
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -132,6 +145,20 @@ def crawl_document_files(doc: dict) -> list:
         return []
 
 
+def _norm_date(raw) -> str:
+    """Normalize a ZZZS DATUM to ISO YYYY-MM-DD (best effort; '' if unparseable)."""
+    s = str(raw or "").strip()
+    if not s:
+        return ""
+    m = re.search(r"(\d{4})-(\d{2})-(\d{2})", s)          # already ISO
+    if m:
+        return m.group(0)
+    m = re.search(r"(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})", s)  # DD.MM.YYYY
+    if m:
+        return f"{int(m.group(3)):04d}-{int(m.group(2)):02d}-{int(m.group(1)):02d}"
+    return ""
+
+
 def build_manifest_entry(doc: dict, file_info: dict) -> dict:
     """Build a normalized manifest entry."""
     unid = doc.get("@unid") or doc.get("unid") or ""
@@ -139,6 +166,7 @@ def build_manifest_entry(doc: dict, file_info: dict) -> dict:
     return {
         "unid": unid,
         "title": title.strip() if isinstance(title, str) else str(title),
+        "doc_date": _norm_date(doc.get("DATUM") or doc.get("datum")),
         "category_code": doc.get("category_code", ""),
         "category_name": doc.get("category_name", ""),
         "file_url": file_info.get("file_url"),
@@ -249,31 +277,62 @@ def download_files(manifest: list) -> list:
 
 # ── Step 3: Text Extraction ──────────────────────────────────────────────────
 
+def _ocr_image(img) -> str:
+    """Run Slovenian tesseract OCR on a PIL image."""
+    import pytesseract
+    try:
+        return pytesseract.image_to_string(img, lang="slv").strip()
+    except Exception as e:
+        log.error("OCR failed: %s", e)
+        return ""
+
+
+def _ocr_pdf_page(page) -> str:
+    """Render a PDF page to an image and OCR it (for scanned/image-only pages)."""
+    import io
+    import fitz
+    from PIL import Image
+    try:
+        pix = page.get_pixmap(matrix=fitz.Matrix(OCR_DPI / 72, OCR_DPI / 72))
+        return _ocr_image(Image.open(io.BytesIO(pix.tobytes("png"))))
+    except Exception as e:
+        log.error("OCR render failed: %s", e)
+        return ""
+
+
 def extract_pdf_text(path: str) -> list:
-    """Extract text from PDF, returning list of (page_number, text) tuples."""
+    """Extract text from PDF, returning list of (page_number, text) tuples.
+
+    Pages with no real text layer (scanned) are OCR'd in Slovenian as a fallback."""
     import fitz
     pages = []
     try:
         doc = fitz.open(path)
+        # OCR only reasonably-sized docs — skip the few giant scanned archives (see OCR_MAX_PAGES)
+        ocr_doc = OCR_ENABLED and len(doc) <= OCR_MAX_PAGES
+        if OCR_ENABLED and not ocr_doc:
+            EXTRACT_STATS["pdf_ocr_skipped_large"] += 1
         for page_num in range(len(doc)):
             page = doc[page_num]
             text = page.get_text("text")
             # Strip common headers/footers
-            lines = text.split("\n")
             cleaned = []
-            for line in lines:
+            for line in text.split("\n"):
                 stripped = line.strip()
-                if re.match(r"^\d+$", stripped):
-                    continue
-                if re.match(r"^Stran \d+ od \d+", stripped):
+                if re.match(r"^\d+$", stripped) or re.match(r"^Stran \d+ od \d+", stripped):
                     continue
                 cleaned.append(line)
             page_text = "\n".join(cleaned).strip()
-            if len(page_text) >= 50:  # Skip near-empty pages (possibly scanned)
+            if len(page_text) >= MIN_TEXT_CHARS:
                 pages.append((page_num + 1, page_text))
-            else:
-                if page_text:
-                    log.debug("Skipping page %d of %s: possibly scanned (%d chars)", page_num + 1, path, len(page_text))
+                EXTRACT_STATS["pdf_text_pages"] += 1
+            elif ocr_doc:                         # scanned/near-empty → OCR fallback
+                ocr_text = _ocr_pdf_page(page)
+                if len(ocr_text) >= MIN_TEXT_CHARS:
+                    pages.append((page_num + 1, ocr_text))
+                    EXTRACT_STATS["pdf_ocr_pages"] += 1
+                else:
+                    EXTRACT_STATS["pdf_empty_pages"] += 1
         doc.close()
     except Exception as e:
         log.error("Failed to extract PDF %s: %s", path, e)
@@ -286,20 +345,97 @@ def extract_docx_text(path: str) -> list:
     try:
         doc = Document(path)
         full_text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
-        if len(full_text) >= 50:
+        if len(full_text) >= MIN_TEXT_CHARS:
             return [(1, full_text)]  # DOCX doesn't have reliable page numbers
     except Exception as e:
         log.error("Failed to extract DOCX %s: %s", path, e)
     return []
 
 
-def extract_text_from_file(path: str, file_type: str) -> list:
-    """Extract text from a file. Returns list of (page_number, text)."""
-    if file_type == "pdf":
-        return extract_pdf_text(path)
-    elif file_type == "docx":
-        return extract_docx_text(path)
+def extract_doc_text(path: str) -> list:
+    """Extract text from a legacy .doc (Word 97-2003) via antiword, then libreoffice.
+
+    These tools are build-machine-only deps (not shipped in the runtime image)."""
+    import os
+    import shutil
+    import subprocess
+    import tempfile
+    if shutil.which("antiword"):
+        try:
+            out = subprocess.run(["antiword", path], capture_output=True, timeout=120)
+            txt = out.stdout.decode("utf-8", "replace").strip()
+            if len(txt) >= MIN_TEXT_CHARS:
+                return [(1, txt)]
+        except Exception as e:
+            log.error("antiword failed %s: %s", path, e)
+    if shutil.which("wvText"):                    # wvWare — writes text to an output file
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                out_txt = os.path.join(td, "out.txt")
+                subprocess.run(["wvText", path, out_txt], capture_output=True, timeout=120)
+                if os.path.exists(out_txt):
+                    txt = open(out_txt, encoding="utf-8", errors="replace").read().strip()
+                    if len(txt) >= MIN_TEXT_CHARS:
+                        return [(1, txt)]
+        except Exception as e:
+            log.error("wvText failed %s: %s", path, e)
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if soffice:
+        import os
+        import tempfile
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                subprocess.run([soffice, "--headless", "--convert-to", "txt",
+                                "--outdir", td, path], capture_output=True, timeout=180)
+                out_txt = os.path.join(td, os.path.splitext(os.path.basename(path))[0] + ".txt")
+                if os.path.exists(out_txt):
+                    txt = open(out_txt, encoding="utf-8", errors="replace").read().strip()
+                    if len(txt) >= MIN_TEXT_CHARS:
+                        return [(1, txt)]
+        except Exception as e:
+            log.error("libreoffice failed %s: %s", path, e)
+    log.warning("No .doc extractor (install antiword) — skipped %s", path)
     return []
+
+
+def extract_image_ocr(path: str) -> list:
+    """OCR a (possibly multi-page) .tif/.tiff scanned image in Slovenian."""
+    from PIL import Image
+    pages = []
+    try:
+        img = Image.open(path)
+        i = 0
+        while True:
+            try:
+                img.seek(i)
+            except EOFError:
+                break
+            txt = _ocr_image(img.convert("RGB"))
+            if len(txt) >= MIN_TEXT_CHARS:
+                pages.append((i + 1, txt))
+            i += 1
+    except Exception as e:
+        log.error("Failed to OCR image %s: %s", path, e)
+    return pages
+
+
+def extract_text_from_file(path: str, ext: str) -> list:
+    """Extract text from a file, dispatching on its REAL extension. Returns (page, text) list."""
+    ext = (ext or "").lower()
+    if ext == "pdf":
+        result = extract_pdf_text(path)
+    elif ext == "docx":
+        result = extract_docx_text(path)
+    elif ext == "doc":
+        result = extract_doc_text(path)
+    elif ext in ("tif", "tiff"):
+        result = extract_image_ocr(path) if OCR_ENABLED else []
+    else:
+        # xls/xlsx/zip/pptx/… → better served by dedicated structured tools (see retrieval_audit)
+        EXTRACT_STATS[f"skip_{ext or 'none'}"] += 1
+        return []
+    EXTRACT_STATS["extracted_" + ext if result else "empty_" + ext] += 1
+    return result
 
 
 # ── Step 4: Chunking ─────────────────────────────────────────────────────────
@@ -388,14 +524,22 @@ def sliding_window_chunk(text: str, doc_title: str, category: str, doc_id: str,
     return chunks
 
 
+def _real_ext(entry: dict) -> str:
+    """The real file extension from the download URL (manifest file_type collapses
+    xls/zip/tif into 'other', so the stored filename can't be trusted)."""
+    from urllib.parse import unquote
+    seg = unquote(entry.get("file_url") or "").split("/$FILE/")[-1]
+    m = re.search(r"\.([A-Za-z0-9]{2,4})$", seg)
+    return m.group(1).lower() if m else (entry.get("file_type") or "").lower()
+
+
 def chunk_document(entry: dict) -> list:
     """Extract text and chunk a single document."""
     path = entry.get("local_path")
-    file_type = entry.get("file_type", "pdf")
     if not path or not Path(path).exists():
         return []
 
-    pages = extract_text_from_file(path, file_type)
+    pages = extract_text_from_file(path, _real_ext(entry))
     if not pages:
         return []
 
@@ -413,17 +557,24 @@ def chunk_document(entry: dict) -> list:
         page_number=pages[0][0] if pages else 1,
     )
     if article_chunks:
-        return article_chunks
+        chunks = article_chunks
+    else:
+        # Fall back to sliding window per page
+        chunks = []
+        for page_num, page_text in pages:
+            chunks.extend(sliding_window_chunk(
+                page_text, doc_title, category, doc_id, file_url, page_num,
+            ))
 
-    # Fall back to sliding window per page
-    all_chunks = []
-    for page_num, page_text in pages:
-        page_chunks = sliding_window_chunk(
-            page_text, doc_title, category, doc_id, file_url, page_num,
-        )
-        all_chunks.extend(page_chunks)
-
-    return all_chunks
+    # Provenance: stamp every chunk with its source doc's date + when it was embedded,
+    # so the index is trackable and retrieval can prioritise the newest (see refresh.py).
+    import datetime as _dt
+    stamp = _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds")
+    for ch in chunks:
+        ch["metadata"]["unid"] = doc_id
+        ch["metadata"]["doc_date"] = entry.get("doc_date", "")
+        ch["metadata"]["embedded_at"] = stamp
+    return chunks
 
 
 # ── Step 5: Migrate Pravila OZZ ──────────────────────────────────────────────
@@ -500,6 +651,7 @@ def build_index(manifest: list):
                      i + 1, total_docs, pct, len(all_chunks))
 
     log.info("Generated %d chunks from %d documents", len(all_chunks), total_docs)
+    log.info("Extraction stats: %s", dict(sorted(EXTRACT_STATS.items())))
 
     # Migrate Pravila OZZ rules
     pravila_chunks = migrate_pravila_ozz()
@@ -552,7 +704,13 @@ def main():
     parser.add_argument("--crawl", action="store_true", help="API crawl only")
     parser.add_argument("--download", action="store_true", help="Download files only")
     parser.add_argument("--index", action="store_true", help="Chunk + embed + store only")
+    parser.add_argument("--no-ocr", action="store_true", help="Disable OCR of scanned PDFs/.tif")
     args = parser.parse_args()
+
+    if args.no_ocr:
+        global OCR_ENABLED
+        OCR_ENABLED = False
+        log.info("OCR disabled (--no-ocr)")
 
     # If no flags, run full pipeline
     run_all = not (args.crawl or args.download or args.index)

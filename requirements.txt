@@ -10,3 +10,8 @@ notion-client==3.0.0
 starlette==0.52.1
 PyMuPDF==1.27.2
 lxml==6.0.2
+# In-process periodic refresh (refresh.py): OCR scanned PDFs/.tif, parse .docx + the MTP xlsx.
+pytesseract==0.3.13
+pillow==12.2.0
+openpyxl==3.1.5
+python-docx==1.2.0

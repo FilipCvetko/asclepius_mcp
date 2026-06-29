@@ -7,12 +7,23 @@ primary_region = "fra"
   PORT = "8000"
   MCP_TRANSPORT = "streamable-http"
   MCP_HOST = "0.0.0.0"
+  # ChromaDB is served from the /data VOLUME (real fs — the Rust/sqlite bindings need
+  # that; the image overlay at /seed times out). The app seeds it from /seed in a
+  # background thread on boot, so the HTTP server can come up and pass health first.
   CHROMADB_PATH = "/data/chromadb"
+  # Periodic in-process refresh (refresh.py): every 2 days, write updated catalogs/ledger to the
+  # /data volume so updates persist + serve without a redeploy; downloads + companions live there.
+  REFRESH_INTERVAL_DAYS = "2"
+  ASCLEPIUS_DATA_DIR = "/data/catalogs"
+  EGRADIVA_FILES_DIR = "/data/egradiva_files"
+  NOTIFY_EMAIL = "filipcvetko123@gmail.com"
 
 [http_service]
   internal_port = 8000
   force_https = true
-  auto_stop_machines = "stop"
+  # Keep the machine warm: the ChromaDB collections take ~2-3 min to load on a background
+  # thread after boot, so auto-stopping would leave the index unready on every cold start.
+  auto_stop_machines = "off"
   auto_start_machines = true
   min_machines_running = 1
 
@@ -23,13 +34,16 @@ primary_region = "fra"
 
 [[http_service.checks]]
   grace_period = "120s"
-  interval = "30s"
+  interval = "15s"
   method = "GET"
   timeout = "10s"
   path = "/health"
 
+# Dedicated CPU: cold-start imports (torch/sklearn/transformers) are single-threaded and
+# get throttled on shared CPUs; dedicated cores let the server bind well inside the health
+# window. Heavy data load happens on a background thread after the server is up.
 [[vm]]
-  size = "shared-cpu-2x"
+  size = "performance-2x"
   memory = "4gb"
 
 [mounts]

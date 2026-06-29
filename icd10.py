@@ -9,6 +9,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from cache import is_cache_fresh, read_cache, write_cache
+from paths import data_path
 from fastmcp.tools.tool import ToolResult
 
 # Configuration
@@ -97,11 +98,11 @@ def _download_and_parse_mkb10() -> List[Dict[str, Any]]:
 
 
 def _load_bundled_data() -> List[Dict[str, Any]]:
-    """Load bundled ICD-10 data from data/icd10_codes.json."""
-    if ICD10_DATA_FILE.exists():
+    """Load bundled ICD-10 data (volume copy wins, else baked data/icd10_codes.json)."""
+    f = data_path("icd10_codes.json")
+    if f.exists():
         try:
-            with open(ICD10_DATA_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+            return json.loads(f.read_text(encoding="utf-8"))
         except Exception as e:
             print(f"Error loading bundled ICD-10 data: {e}")
     return []

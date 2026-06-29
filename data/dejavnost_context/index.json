@@ -1,0 +1,11 @@
+{
+  "_about": "Curated orientation notes per dejavnost (vrsta zdravstvene dejavnosti). Surfaced by get_sifra/poisci_sifro when a dejavnost filter resolves to one of these. Orientation only — for binding point values, frequency limits and conditions ALWAYS cross-reference get_billing_rules (Splošni dogovor / Vsebinsko navodilo) and the structured šifra rows. No fabricated figures or URLs.",
+  "notes": {
+    "302": {"note": "302.md", "title": "Splošna in družinska medicina (zunajbolnišnična)"},
+    "327": {"note": "327.md", "title": "Pediatrija (splošna zunajbolnišnična)"},
+    "306": {"note": "306.md", "title": "Ginekologija in porodništvo (splošna zunajbolnišnična)"},
+    "301": {"note": "301.md", "title": "Medicina dela, prometa in športa (splošna zunajbolnišnična)"},
+    "338": {"note": "338.md", "title": "Urgentna medicina (splošna zunajbolnišnična)"},
+    "404": {"note": "404.md", "title": "Splošno zobozdravstvo (zobozdravstvena dejavnost)"}
+  }
+}

@@ -1,0 +1,352 @@
+[
+  {
+    "category": "Dogovor – Dogovor",
+    "unid": "A36866AD63F6D4E9C1258DDF002CFC03",
+    "title": "Uredba o programih storitev obveznega zdravstvenega zavarovanja, zmogljivostih, potrebnih za njegovo izvajanje, in obsegu sredstev za leto 2026",
+    "date": "20.04.2026",
+    "role": "uredba_programi",
+    "domain": "outpatient",
+    "files": [
+      {
+        "ext": "pdf",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/a36866ad63f6d4e9c1258ddf002cfc03/$FILE/u20260332.pdf",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/A36866AD63F6D4E9C1258DDF002CFC03_0.pdf",
+        "size": 4476783
+      }
+    ]
+  },
+  {
+    "category": "Navodilo o beleženju in obračunavanju zdravstvenih storitev in izdanih materialov",
+    "unid": "8B39572A03527FECC12585A0002C4D20",
+    "title": "Navodilo o beleženju in obračunavanju zdravstvenih storitev in izdanih materialov",
+    "date": "11.03.2026",
+    "role": "navodilo_obracun",
+    "domain": "outpatient",
+    "files": [
+      {
+        "ext": "doc",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/1Spremembe_1del_04032010.doc",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_0.doc",
+        "size": 29184
+      },
+      {
+        "ext": "doc",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/2Spremembe_1del_10052010.doc",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_1.doc",
+        "size": 165888
+      },
+      {
+        "ext": "doc",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/3Spremembe_1del_12052010.doc",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_2.doc",
+        "size": 26112
+      },
+      {
+        "ext": "doc",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/4Spremembe_1del_30092010.doc",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_3.doc",
+        "size": 371200
+      },
+      {
+        "ext": "doc",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/6Spremembe_1del_01062011.doc",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_4.doc",
+        "size": 337408
+      },
+      {
+        "ext": "doc",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/7Spremembe_1del_21072011.doc",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_5.doc",
+        "size": 319488
+      },
+      {
+        "ext": "doc",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/8Spremembe_1del_09112011.doc",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_6.doc",
+        "size": 31744
+      },
+      {
+        "ext": "doc",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/9Spremembe_1del_19122011.doc",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_7.doc",
+        "size": 58368
+      },
+      {
+        "ext": "doc",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/10Spremembe_1del_20012012.doc",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_8.doc",
+        "size": 52224
+      },
+      {
+        "ext": "doc",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/11Spremembe_1del_15022012.doc",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_9.doc",
+        "size": 32768
+      },
+      {
+        "ext": "docx",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/12Spremembe_%201del_28052012.docx",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_10.docx",
+        "size": 19430
+      },
+      {
+        "ext": "docx",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/Prirocnik3_%201del.docx",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_11.docx",
+        "size": 75669
+      },
+      {
+        "ext": "docx",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/ATTX9W0M.docx",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_12.docx",
+        "size": 470259
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v15%203.5.2016.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_13.zip",
+        "size": 1019327
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v14%206.10.2015.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_14.zip",
+        "size": 979801
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v13%207.8.2015.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_15.zip",
+        "size": 952278
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v12%2010.3.2015.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_16.zip",
+        "size": 966235
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v11%2023.12.2014.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_17.zip",
+        "size": 967953
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v10%2024.7.2014.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_18.zip",
+        "size": 963309
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v9%2022.04.2014.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_19.zip",
+        "size": 950993
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v8%2027012014.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_20.zip",
+        "size": 963844
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v7%2022102013.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_21.zip",
+        "size": 968754
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/IZDATKI%20VSEBINSKO%20NAVODILO%20v6%2018032013.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_22.zip",
+        "size": 1661556
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v16%207.9.2016.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_23.zip",
+        "size": 1025312
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v17%2010.4.2017.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_24.zip",
+        "size": 1067478
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v18%207.9.2017.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_25.zip",
+        "size": 1038633
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v19%2029.9.2017.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_26.zip",
+        "size": 1131627
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20V20%2017.5.2018.ZIP",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_27.zip",
+        "size": 1095762
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v21_januar_2019.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_28.zip",
+        "size": 1206281
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v22_17.9.2019.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_29.zip",
+        "size": 1118044
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v23%20januar2021.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_30.zip",
+        "size": 1648044
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO_NAVODILO_v24%20maj2021.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_31.zip",
+        "size": 1652138
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO_NAVODILO_v25%20maj2022.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_32.zip",
+        "size": 1729347
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO_NAVODILO_v26_september2023.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_33.zip",
+        "size": 1703967
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO_NAVODILO_v27_maj2024.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_34.zip",
+        "size": 1763298
+      },
+      {
+        "ext": "zip",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO_NAVODILO_v28_december2024.zip",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_35.zip",
+        "size": 1793212
+      },
+      {
+        "ext": "2026",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v29%2011.3.2026%20s%20spremembami.docx",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_36.2026",
+        "size": 528394
+      },
+      {
+        "ext": "2026",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO%20NAVODILO%20v29%2011.3.2026%20%C4%8Distopis.docx",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_37.2026",
+        "size": 504783
+      },
+      {
+        "ext": "pdf",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/8b39572a03527fecc12585a0002c4d20/$FILE/VSEBINSKO_NAVODILO_v29_11.3.2026_cistopis_P.pdf",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/8B39572A03527FECC12585A0002C4D20_38.pdf",
+        "size": 1004464
+      }
+    ]
+  },
+  {
+    "category": "Navodila za obračun - vprašanja in odgovori",
+    "unid": "7896292D8FB1EE7EC1258925003B9202",
+    "title": "Navodilo za obračun - STANDARDI KODIRANJA",
+    "date": "24.04.2025",
+    "role": "standardi_kodiranja",
+    "domain": "outpatient",
+    "files": [
+      {
+        "ext": "docx",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/7896292d8fb1ee7ec1258925003b9202/$FILE/6_standardi%20kodiranja_cistopis_2012022_v2.docx",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/7896292D8FB1EE7EC1258925003B9202_0.docx",
+        "size": 1009950
+      },
+      {
+        "ext": "docx",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/7896292d8fb1ee7ec1258925003b9202/$FILE/6_standardi%20kodiranja_vidne%20spremembe_2012022_v2.docx",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/7896292D8FB1EE7EC1258925003B9202_1.docx",
+        "size": 1031990
+      },
+      {
+        "ext": "pdf",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/7896292d8fb1ee7ec1258925003b9202/$FILE/Standardi%20kodiranja_v11_slo_14022023.pdf",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/7896292D8FB1EE7EC1258925003B9202_2.pdf",
+        "size": 2767437
+      },
+      {
+        "ext": "pdf",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/7896292d8fb1ee7ec1258925003b9202/$FILE/Standardi-kodiranja_v11_slo_06042023.pdf",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/7896292D8FB1EE7EC1258925003B9202_3.pdf",
+        "size": 3057769
+      },
+      {
+        "ext": "pdf",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/7896292d8fb1ee7ec1258925003b9202/$FILE/Standardi%20kodiranja_v11_slo_20062024.pdf",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/7896292D8FB1EE7EC1258925003B9202_4.pdf",
+        "size": 3850252
+      },
+      {
+        "ext": "pdf",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/7896292d8fb1ee7ec1258925003b9202/$FILE/Standardi-kodiranja_v11_slo_23042025.pdf",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/7896292D8FB1EE7EC1258925003B9202_5.pdf",
+        "size": 3868273
+      }
+    ]
+  },
+  {
+    "category": "Navodila za obračun - vprašanja in odgovori",
+    "unid": "93FF1AE396D7D88EC1258B410045DCCC",
+    "title": "Navodilo za obračun, vprašanja in odgovori, št. 1/2024",
+    "date": "05.01.2026",
+    "role": "billing_qa",
+    "domain": "outpatient",
+    "files": [
+      {
+        "ext": "docx",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/93ff1ae396d7d88ec1258b410045dccc/$FILE/Navodilo%20za%20obra%C4%8Dun%201-2024.docx",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/93FF1AE396D7D88EC1258B410045DCCC_0.docx",
+        "size": 307629
+      },
+      {
+        "ext": "pdf",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/93ff1ae396d7d88ec1258b410045dccc/$FILE/Navodilo_za_obracun_1-2024_P.pdf",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/93FF1AE396D7D88EC1258B410045DCCC_1.pdf",
+        "size": 719710
+      }
+    ]
+  },
+  {
+    "category": "Navodila za obračun - vprašanja in odgovori",
+    "unid": "1B78174E45D07048C12589C5003FD786",
+    "title": "Navodilo za obračun, vprašanja in odgovori, št. 2/2023",
+    "date": "13.06.2023",
+    "role": "billing_qa",
+    "domain": "outpatient",
+    "files": [
+      {
+        "ext": "docx",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/1b78174e45d07048c12589c5003fd786/$FILE/NAVODILO%20za%20obra%C4%8Dun%202-2023.docx",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/1B78174E45D07048C12589C5003FD786_0.docx",
+        "size": 301042
+      },
+      {
+        "ext": "pdf",
+        "url": "https://api.zzzs.si/ZZZS/info/egradiva.nsf/0/1b78174e45d07048c12589c5003fd786/$FILE/Navodilo%20za%20obra%C4%8Dun%202-2023.pdf",
+        "path": "/Users/filipcvetko/Documents/Asclepius/data/billing_files/1B78174E45D07048C12589C5003FD786_1.pdf",
+        "size": 104109850
+      }
+    ]
+  }
+]

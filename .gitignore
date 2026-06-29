@@ -5,3 +5,6 @@ data/chromadb/
 data/egradiva_files/
 data/egradiva_manifest.json
 data/egradiva_errors.log
+*.emf
+*.wmf
+*.log

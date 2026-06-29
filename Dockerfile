@@ -19,16 +19,25 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
+# OCR (scanned PDFs/.tif, Slovenian) + .doc extraction for the in-process periodic refresh.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr tesseract-ocr-slv wv && rm -rf /var/lib/apt/lists/*
+
 # Copy installed packages and model cache from builder
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /root/.cache /root/.cache
 
-# Copy application code
-COPY main.py cache.py contacts.py drugs.py egradiva.py icd10.py spa.py zzzs.py templates.py ./
+# Copy application code (incl. the refresh orchestrator + path helper)
+COPY main.py cache.py contacts.py drugs.py egradiva.py pravila.py obracun.py sifranti.py mtp.py icd10.py spa.py zzzs.py templates.py refresh.py paths.py ./
 
-# Copy small data files needed at runtime
-COPY data/icd10_codes.json data/zzzs_rules.json data/
+# Build/fetch scripts the refresh imports (crawl/extract/chunk + catalog builders)
+COPY scripts/build_egradiva_index.py scripts/fetch_sifranti.py scripts/build_sifrant_catalog.py \
+     scripts/fetch_mtp.py scripts/build_mtp_catalog.py ./scripts/
+
+# Copy small data files needed at runtime (+ MTP exclusion/timska companions for refresh rebuilds)
+COPY data/icd10_codes.json data/zzzs_rules.json data/sifrant_catalog.json data/mtp_catalog.json data/
+COPY data/mtp_companions/ data/mtp_companions/
 
 # Copy ChromaDB as seed for initial volume population
 COPY data/chromadb/ /seed/chromadb/
