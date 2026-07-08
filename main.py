@@ -19,6 +19,7 @@ from sifranti import initialize_sifranti, _lookup_sifra, _sifrant_changelog
 from mtp import initialize_mtp, _lookup_mtp
 from spa import initialize_spa, _get_spa_eligibility
 from templates import initialize_templates, _get_template, _list_templates, _format_note_prompt
+from changes import _summarize_changes
 
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
@@ -581,6 +582,55 @@ def sifrant_changelog() -> dict:
     Use when the clinician asks what changed in the šifranti / latest publication.
     """
     return _sifrant_changelog()
+
+
+@mcp.tool()
+def summarize_changes(days: int = 45, source: str = "") -> dict:
+    """Digest of what changed across ALL ZZZS sources in the last N days (default 45).
+
+    ONE cross-source view spanning obračunski šifranti, medicinski pripomočki (MTP), navodila
+    za obračun / Splošni dogovor, and ZZZS e-gradiva dokumenti. The window is measured by each
+    item's own publication date (datum objave), newest first, grouped by source. Obtains the
+    current date at call time and reports the exact window it used.
+
+    USE THIS TOOL WHEN the clinician asks what's new/changed recently ("kaj je novega", "katere
+    spremembe v zadnjem času", "posodobitve zadnjih X dni").
+
+    Each entry carries a date, a short context, and a **Vir:** source link — it does NOT include
+    full document text. Turn the result into an actionable, grouped summary for the clinician and
+    cite each source inline; for the full content of a specific item, drill in with
+    `search_zzzs_documents`, `get_billing_rules`, or `sifrant_changelog`. Long sections are capped
+    with a "… in še N drugih" pointer — narrow by `source` to see more of one source.
+
+    Args:
+        days: look-back window in days (default 45).
+        source: optional filter — one of "sifranti", "mtp", "obracun", "egradiva"
+                (Slovenian synonyms like "pripomocki"/"dokumenti" also accepted). Empty = all.
+    """
+    return _summarize_changes(days=days, source=source or None)
+
+
+@mcp.tool()
+def povzemi_spremembe(days: int = 45, source: str = "") -> dict:
+    """Povzetek sprememb po VSEH virih ZZZS v zadnjih N dneh (privzeto 45).
+
+    En sam pregled čez obračunske šifrante, medicinske pripomočke (MTP), navodila za obračun /
+    Splošni dogovor in e-gradiva dokumente. Okno se meri po datumu objave posameznega vira,
+    najnovejše najprej, združeno po viru. Trenutni datum se pridobi ob klicu in okno je izpisano.
+
+    Uporabi, ko klinik vpraša, kaj je novega / katere spremembe so bile v zadnjem času. Vsak
+    vnos ima datum, kratek kontekst in povezavo **Vir:** — brez celotnega besedila dokumenta.
+    Za celotno vsebino posameznega vira uporabi `search_zzzs_documents`, `get_billing_rules`
+    ali `sifrant_changelog`. Daljše sekcije so skrajšane z opombo "… in še N drugih" — za več
+    zoži poizvedbo z argumentom `source`.
+
+    Args:
+        days: dolžina okna v dnevih (privzeto 45).
+        source: neobvezni filter vira — "sifranti", "mtp", "obracun" ali "egradiva". Prazno = vse.
+
+    Slovensko poimenovanje orodja summarize_changes — deluje enako.
+    """
+    return _summarize_changes(days=days, source=source or None)
 
 
 # Register medical-device (MTP) prescribing tool — authoritative ZZZS device list

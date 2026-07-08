@@ -29,7 +29,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /root/.cache /root/.cache
 
 # Copy application code (incl. the refresh orchestrator + path helper)
-COPY main.py cache.py contacts.py drugs.py egradiva.py pravila.py obracun.py sifranti.py mtp.py icd10.py spa.py zzzs.py templates.py refresh.py paths.py ./
+COPY main.py cache.py contacts.py drugs.py egradiva.py pravila.py obracun.py sifranti.py mtp.py icd10.py spa.py zzzs.py templates.py changes.py refresh.py paths.py ./
 
 # Build/fetch scripts the refresh imports (crawl/extract/chunk + catalog builders)
 COPY scripts/build_egradiva_index.py scripts/fetch_sifranti.py scripts/build_sifrant_catalog.py \
