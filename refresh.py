@@ -249,7 +249,11 @@ def _refresh_sifranti(report: dict) -> None:
     # a code upgrade that adds the dejavnost index. paths.data_path prefers the writable volume copy
     # over the freshly-baked image copy, so without this a new derivation would never reach the
     # volume until ZZZS happens to publish a new objava. This makes the volume self-heal.
-    needs_rebuild = not getattr(sifranti, "DEJAVNOSTI", {})
+    # Also self-heal when the loaded catalog predates the MP enrichment (its link tables, e.g. K42,
+    # were not retained by an older build_sifrant_catalog.py) — otherwise the MTP prescribing join
+    # would stay empty on the volume until ZZZS happens to publish a new objava.
+    mp_link_missing = not (sifranti.SIFRANTI.get("K42") or {}).get("zapisi")
+    needs_rebuild = not getattr(sifranti, "DEJAVNOSTI", {}) or mp_link_missing
     if not newer and not needs_rebuild:
         report["sifranti"] = {"changed": False, "objava": f"{cur.get('leto')}/{cur.get('zap_st')}"}
         return
@@ -283,10 +287,16 @@ def _refresh_mtp(report: dict) -> None:
         return
     built = _load_json(Path(__file__).parent / "data" / "mtp_catalog.json", {})
     new_datum = built.get("datum", "")
-    if new_datum and new_datum != cur_datum:
+    datum_changed = bool(new_datum and new_datum != cur_datum)
+    # Self-heal: also commit + reload when the freshly-built catalog now carries prescribing
+    # enrichment but the loaded (volume) copy does not — otherwise a stale non-enriched volume
+    # catalog would keep being served after a deploy until the MTP datum happens to change.
+    enrich_added = bool(built.get("enriched")) and not getattr(mtp, "ENRICHED", 0)
+    if datum_changed or enrich_added:
         _save_json(STATE_DIR / "mtp_catalog.json", built)
         mtp.initialize_mtp()
-        report["mtp"] = {"changed": True, "from": cur_datum, "to": new_datum}
+        report["mtp"] = {"changed": datum_changed, "enrichment_added": enrich_added,
+                         "from": cur_datum, "to": new_datum or cur_datum}
     else:
         report["mtp"] = {"changed": False, "datum": cur_datum}
 

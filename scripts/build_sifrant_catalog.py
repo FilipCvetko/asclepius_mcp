@@ -107,6 +107,16 @@ def _humanize(name: str) -> str:
 # we need to derive the dejavnost↔storitev billability index. Captured during the same parse.
 WANT_MAPPING = {"K1.1", "K1.2", "S3", "2.3"}
 
+# MP (medicinski pripomočki) link/relational + description tables whose rows we PERSIST in the
+# catalog even though they aren't description-bearing code lists (opis_field is None), so the
+# offline MTP enrichment (build_mtp_catalog.py) can join a device to its prescriber/quantity/group.
+# These are small (each a few hundred to ~1300 FK rows) and sit inert for the runtime (sifranti.py
+# only flattens is_code_list tables). Names:
+#   34.4/34.5 podskupine, 63 sistemi artiklov, K38.1-3 skupina↔vrsta, K42 vrsta↔trajnostna doba,
+#   K43 vrsta hierarchy, K44.1 vrsta↔vrsta naročila, K45.1/2 vrsta↔sistem/artikel.
+KEEP_ROWS = {"34.4", "34.5", "63", "K38.1", "K38.2", "K38.3",
+             "K42", "K43", "K44.1", "K45.1", "K45.2"}
+
 
 def build(xml_path: Path, leto: int, zap: int) -> dict:
     objava = {"leto": leto, "zap_st": zap, "datum": "", "komentar": "",
@@ -283,8 +293,10 @@ def _finalize(cur: dict, sifranti: dict) -> None:
         "count": len(cur["zapisi"]),
         "is_code_list": opis_field is not None,
     }
-    # Store rows only for code lists (description-bearing); document the rest by metadata.
-    entry["zapisi"] = cur["zapisi"] if opis_field is not None else []
+    # Store rows for code lists (description-bearing) and for the MP link tables the MTP
+    # enrichment needs (KEEP_ROWS); document the rest by metadata only.
+    entry["zapisi"] = (cur["zapisi"]
+                       if (opis_field is not None or cur["oznaka"] in KEEP_ROWS) else [])
     sifranti[key] = entry
 
 

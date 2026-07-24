@@ -16,7 +16,7 @@ from egradiva import initialize_egradiva, _search_egradiva
 from pravila import initialize_pravila, _search_pravila
 from obracun import initialize_obracun, _search_obracun
 from sifranti import initialize_sifranti, _lookup_sifra, _sifrant_changelog
-from mtp import initialize_mtp, _lookup_mtp
+from mtp import initialize_mtp, _lookup_mtp, _lookup_mtp_prescribing
 from spa import initialize_spa, _get_spa_eligibility
 from templates import initialize_templates, _get_template, _list_templates, _format_note_prompt
 from changes import _summarize_changes
@@ -673,6 +673,45 @@ def poisci_pripomocek(query: str) -> dict:
     return _lookup_mtp(query)
 
 
+@mcp.tool()
+def get_mtp_prescribing(query: str) -> dict:
+    """Focused prescribing answer for ONE medical device (MTP) — the three things a clinician needs
+    before writing the naročilnica, from the authoritative ZZZS "Vsi šifranti" MP tables:
+
+      1) WHO may prescribe it — classified as osebni zdravnik (personal physician), specialist,
+         and/or medicinska sestra (DMS), plus whether an odločba imenovanega zdravnika (IOZ) is needed;
+      2) the renewal PERIOD and the maximum QUANTITY per period (and per day where the source states
+         it), including age-scoped variants (e.g. otrok vs odrasel);
+      3) other MTPs in the SAME GROUP that may be prescribed ALONGSIDE it, with mutually-exclusive
+         ones flagged (⚠ — may not be prescribed together).
+
+    Narrower and more structured than get_mtp: resolves the single best-matching device and returns
+    only these three sections. The query may be a device code ("1112", "0501"), a device name
+    ("bergla", "voziček"), or a patient condition. Quantities/periods are shown verbatim from the
+    šifrant — for durable devices with no per-period count, that is stated (never fabricated).
+
+    EXAMPLES:
+    • "1112" → mobilne hlačke: osebni+specialist; 180 kosov/3 mesece (1–5/dan); skupina Inkontinenca
+    • "bergla" → who (incl. DMS), trajnostna doba + količina, druge opore v isti skupini
+    • "0131" → proteza: samo specialist; trajnostna doba po starosti; druge proteze v skupini
+    """
+    return _lookup_mtp_prescribing(query)
+
+
+@mcp.tool()
+def poisci_predpis_pripomocka(query: str) -> dict:
+    """Predpis medicinsko-tehničnega pripomočka (MTP) — kdo predpiše, obdobje in največja količina,
+    ter kaj iz iste skupine se lahko predpiše skupaj.
+
+    Slovensko poimenovanje orodja get_mtp_prescribing — deluje enako. Za en pripomoček vrne: (1) kdo
+    predpiše (osebni zdravnik / specialist / DMS + odločba IOZ), (2) obdobje in največjo količino na
+    obdobje/dan (tudi po starosti), (3) druge pripomočke v isti skupini, ki se lahko predpišejo
+    skupaj (⚠ = se medsebojno izključujejo). Vir: ZZZS "Vsi šifranti" (VrsteMTP, TrajnostneDobeMTP,
+    SkupineMTP …). Poizvedba je lahko šifra ("1112"), ime ("bergla") ali bolezensko stanje.
+    """
+    return _lookup_mtp_prescribing(query)
+
+
 # Register spa eligibility tools
 @mcp.tool()
 def get_spa_eligibility(query: str) -> dict:
@@ -829,7 +868,7 @@ def health_check() -> dict:
     from sifranti import (SIFRANTI as SIFRANT_CAT, _ROWS as SIFRANT_ROWS, OBJAVA as SIFRANT_OBJAVA,
                           DEJAVNOSTI as SIFRANT_DEJAVNOSTI, DEJAVNOSTI_BY_SIFRA as SIFRANT_DEJ_BY_SIFRA,
                           DEJAVNOST_CONTEXT as SIFRANT_DEJ_CONTEXT)
-    from mtp import DEVICES as MTP_DEVICES, DATUM as MTP_DATUM
+    from mtp import DEVICES as MTP_DEVICES, DATUM as MTP_DATUM, ENRICHED as MTP_ENRICHED
     from spa import SPA_ELIGIBILITY, STANDARD_TYPES
     from templates import TEMPLATES
 
@@ -842,7 +881,7 @@ def health_check() -> dict:
         "pravila": {"loaded": bool(PRAVILA_RULES), "records": f"{len(PRAVILA_RULES)} articles, dense={'yes' if PRAVILA_COLLECTION is not None else 'no'}"},
         "obracun": {"loaded": OBRACUN_COLLECTION is not None, "records": OBRACUN_COLLECTION.count() if OBRACUN_COLLECTION else 0},
         "sifranti": {"loaded": bool(SIFRANT_ROWS), "records": f"{len(SIFRANT_CAT)} šifrantov, {len(SIFRANT_ROWS)} code rows, objava {SIFRANT_OBJAVA.get('leto')}/{SIFRANT_OBJAVA.get('zap_st')}; dejavnost index: {len(SIFRANT_DEJAVNOSTI)} dejavnosti, {len(SIFRANT_DEJ_BY_SIFRA)} storitev mapiranih, {len(SIFRANT_DEJ_CONTEXT)} kontekstnih opomb"},
-        "mtp": {"loaded": bool(MTP_DEVICES), "records": f"{len(MTP_DEVICES)} pripomočkov, stanje {MTP_DATUM}"},
+        "mtp": {"loaded": bool(MTP_DEVICES), "records": f"{len(MTP_DEVICES)} pripomočkov, stanje {MTP_DATUM}, obogatenih {MTP_ENRICHED}"},
         "spa": {"loaded": bool(SPA_ELIGIBILITY), "records": f"{len(SPA_ELIGIBILITY)} spas, {len(STANDARD_TYPES)} standards"},
         "templates": {"loaded": bool(TEMPLATES), "records": len(TEMPLATES) if TEMPLATES else 0},
     }
