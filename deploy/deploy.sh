@@ -29,6 +29,17 @@ done
 log() { echo "[deploy $(date -u +%H:%M:%S)] $*"; }
 free_gb() { df -BG --output=avail / | tail -1 | tr -dc '0-9'; }
 
+# Cap the build cache. Docker 29 renamed --keep-storage to --reserved-space,
+# which means space PROTECTED from pruning — the opposite intent, and it
+# silently prunes nothing. --max-used-space is the flag that caps the cache;
+# fall back to a full prune on older daemons that lack it.
+prune_cache() {
+  docker builder prune -f --max-used-space 5GB 2>/dev/null \
+    || docker builder prune -f 2>/dev/null \
+    || true
+  docker image prune -f >/dev/null 2>&1 || true
+}
+
 cd "$DEPLOY_DIR"
 
 # --- preflight: disk ------------------------------------------------------
@@ -36,8 +47,7 @@ cd "$DEPLOY_DIR"
 # loop fills the disk and wedges Docker. Prune before, not after, the build.
 if [ "$(free_gb)" -lt "$MIN_FREE_GB" ]; then
   log "only $(free_gb)G free — pruning build cache"
-  docker builder prune -f --keep-storage 5GB >/dev/null 2>&1 || true
-  docker image prune -f >/dev/null 2>&1 || true
+  prune_cache
 fi
 [ "$(free_gb)" -ge "$MIN_FREE_GB" ] \
   || { log "ABORT: only $(free_gb)G free, need ${MIN_FREE_GB}G"; exit 1; }
@@ -98,6 +108,5 @@ if ! "$DEPLOY_DIR/smoke_test.sh" http://127.0.0.1:8000; then
 fi
 
 # --- success --------------------------------------------------------------
-docker image prune -f >/dev/null 2>&1 || true
-docker builder prune -f --keep-storage 5GB >/dev/null 2>&1 || true
+prune_cache
 log "DEPLOYED $APP_VERSION — $(free_gb)G free"

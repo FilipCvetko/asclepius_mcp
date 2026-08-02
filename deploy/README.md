@@ -120,10 +120,14 @@ before building if free space drops under 8 GB, and prunes again after a
 successful deploy. If something goes wrong and the disk fills:
 
 ```bash
-docker builder prune -f --keep-storage 5GB
+docker builder prune -f --max-used-space 5GB
 docker image prune -f
 docker system df
 ```
+
+Note: Docker 29 renamed `--keep-storage` to `--reserved-space`, which means the
+space *protected from* pruning. Passing it prunes nothing and exits 0. Use
+`--max-used-space` to cap the cache.
 
 ## Secrets on the server
 
