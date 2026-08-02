@@ -14,7 +14,12 @@ set -euo pipefail
 SRC="${ASCLEPIUS_SRC:-/opt/asclepius/src}"
 DEPLOY_DIR="$SRC/deploy"
 IMAGE=asclepius-mcp
-MIN_FREE_GB=8
+# A full rebuild peaks at roughly (old image + new image + old cache + new cache).
+# Measured on this 38G box: build cache alone reached 22.7GB and filled the disk
+# to 100%, which killed the running container. So drop the cache outright below
+# SAFE_BUILD_GB, and refuse to start a build below MIN_FREE_GB.
+MIN_FREE_GB=12
+SAFE_BUILD_GB=20
 
 REF=""
 SKIP_BUILD=0
@@ -33,9 +38,13 @@ free_gb() { df -BG --output=avail / | tail -1 | tr -dc '0-9'; }
 # which means space PROTECTED from pruning — the opposite intent, and it
 # silently prunes nothing. --max-used-space is the flag that caps the cache;
 # fall back to a full prune on older daemons that lack it.
+# Cap the cache after a successful deploy so it cannot creep back to the 22.7GB
+# that filled the disk. Docker 29 renamed --keep-storage to --reserved-space,
+# which means space PROTECTED from pruning — the opposite intent, and it silently
+# prunes nothing. --max-used-space is the flag that caps; fall back for older daemons.
 prune_cache() {
-  docker builder prune -f --max-used-space 5GB 2>/dev/null \
-    || docker builder prune -f 2>/dev/null \
+  docker builder prune -f --max-used-space 8GB >/dev/null 2>&1 \
+    || docker builder prune -f >/dev/null 2>&1 \
     || true
   docker image prune -f >/dev/null 2>&1 || true
 }
@@ -45,16 +54,14 @@ cd "$DEPLOY_DIR"
 # --- preflight: disk ------------------------------------------------------
 # The box runs at ~11GB free with a multi-GB build cache; an unpruned deploy
 # loop fills the disk and wedges Docker. Prune before, not after, the build.
-if [ "$(free_gb)" -lt "$MIN_FREE_GB" ]; then
-  log "only $(free_gb)G free — pruning build cache"
-  prune_cache
-fi
-# Escalate before giving up: most cache is `Shared: true` with the live image and
-# so is un-prunable, which means a normal prune can free nothing. Losing the cache
-# (slow next build) beats refusing to ship a release.
-if [ "$(free_gb)" -lt "$MIN_FREE_GB" ]; then
-  log "still $(free_gb)G free — dropping ALL build cache (next build will be slow)"
+# A bounded prune is not enough here: most cache is `Shared: true` with the live
+# image and refuses to go. Below SAFE_BUILD_GB, drop the cache entirely — a slow
+# rebuild is far cheaper than filling the disk and taking the server down.
+if [ "$SKIP_BUILD" = 0 ] && [ "$(free_gb)" -lt "$SAFE_BUILD_GB" ]; then
+  log "$(free_gb)G free (< ${SAFE_BUILD_GB}G) — dropping all build cache before building"
   docker builder prune -af >/dev/null 2>&1 || true
+  docker image prune -f >/dev/null 2>&1 || true
+  log "$(free_gb)G free after prune"
 fi
 [ "$(free_gb)" -ge "$MIN_FREE_GB" ] \
   || { log "ABORT: only $(free_gb)G free, need ${MIN_FREE_GB}G — free space manually"; exit 1; }
