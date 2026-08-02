@@ -1089,7 +1089,9 @@ if __name__ == "__main__":
         from starlette.routing import Route, Mount
 
         async def _health(request):
-            return JSONResponse({"status": "ok"})
+            # APP_VERSION is set from the git tag at deploy time so CI (and the
+            # monitor) can confirm which release is actually live.
+            return JSONResponse({"status": "ok", "version": os.environ.get("APP_VERSION", "dev")})
 
         mcp_app = mcp.http_app(transport=transport)
         app = Starlette(

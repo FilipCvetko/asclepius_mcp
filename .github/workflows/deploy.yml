@@ -1,0 +1,85 @@
+# Deploy to Hetzner on release
+#
+# The image is NOT built here. data/chromadb (2.1GB) is gitignored, so this
+# runner has nothing for the Dockerfile's `COPY data/chromadb/` to find — the
+# build only works on the server, which holds that directory. This workflow
+# orchestrates and independently verifies; deploy/deploy.sh does the work.
+#
+# Trigger safety: this repo is PUBLIC. `release` and `workflow_dispatch` cannot
+# be fired from a fork, so secrets are not exposed to untrusted code. Never add
+# `pull_request_target` or a fork-reachable trigger to this file.
+name: Deploy
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to deploy (tag, branch or SHA)"
+        required: true
+        default: master
+
+# Never run two deploys at once; never cancel one mid-flight (a half-applied
+# deploy is worse than a queued one).
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Populates the repo's Environments tab with deployment history + status.
+    environment:
+      name: production
+      url: https://mcp.filipcvetko.com/mcp
+
+    steps:
+      - name: Resolve ref
+        id: ref
+        run: |
+          REF="${{ github.event.release.tag_name || inputs.ref }}"
+          [ -n "$REF" ] || { echo "no ref resolved"; exit 1; }
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          echo "Deploying $REF"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+
+      - name: Configure SSH
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          if [ -n "$HOST_KEY" ]; then
+            printf '%s\n' "$HOST_KEY" >> ~/.ssh/known_hosts
+          else
+            ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+
+      - name: Deploy on server
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -o BatchMode=yes "$USER@$HOST" \
+            "/opt/asclepius/src/deploy/deploy.sh --ref '${{ steps.ref.outputs.ref }}'"
+
+      - name: Verify from outside
+        # Independent of the on-box check deploy.sh already ran: this goes
+        # through DNS, Caddy and TLS, and asserts the released tag is live.
+        env:
+          EXPECT_VERSION: ${{ steps.ref.outputs.ref }}
+        run: |
+          chmod +x deploy/smoke_test.sh
+          deploy/smoke_test.sh https://mcp.filipcvetko.com

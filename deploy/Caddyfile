@@ -1,0 +1,18 @@
+{
+	# Let's Encrypt registration + expiry notices
+	email filipcvetko123@gmail.com
+}
+
+mcp.filipcvetko.com {
+	# MCP streamable-http keeps long-lived SSE connections open. flush_interval -1
+	# disables response buffering so events reach the client immediately, and the
+	# zeroed timeouts stop Caddy severing idle streams. No `encode` here on purpose:
+	# compression re-buffers SSE and defeats the flush.
+	reverse_proxy asclepius:8000 {
+		flush_interval -1
+		transport http {
+			read_timeout 0
+			write_timeout 0
+		}
+	}
+}

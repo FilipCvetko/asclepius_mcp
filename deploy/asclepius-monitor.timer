@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Asclepius MCP health monitor every 10 minutes
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=10min
+AccuracySec=1min
+Unit=asclepius-monitor.service
+
+[Install]
+WantedBy=timers.target

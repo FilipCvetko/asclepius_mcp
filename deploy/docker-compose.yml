@@ -1,0 +1,56 @@
+services:
+  asclepius:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: asclepius-mcp:local
+    container_name: asclepius
+    restart: unless-stopped
+    # Secrets (NOTION_*, SMTP_*) come from deploy/.env — never committed.
+    env_file: .env
+    environment:
+      PORT: "8000"
+      MCP_TRANSPORT: streamable-http
+      MCP_HOST: 0.0.0.0
+      # Chroma is baked into the image at /seed/chromadb and self-seeds here on
+      # first boot (main.py:_seed_chromadb_if_needed), versioned by .seed_version.
+      CHROMADB_PATH: /data/chromadb
+      REFRESH_INTERVAL_DAYS: "2"
+      ASCLEPIUS_DATA_DIR: /data/catalogs
+      EGRADIVA_FILES_DIR: /data/egradiva_files
+      NOTIFY_EMAIL: filipcvetko123@gmail.com
+      # Set by deploy.sh from `git describe`; surfaced on /health so CI can
+      # assert the released tag is the one actually running.
+      APP_VERSION: ${APP_VERSION:-dev}
+    volumes:
+      - /opt/asclepius/data:/data
+    # Loopback only — never reachable from the internet, which still goes through
+    # Caddy. This lets deploy.sh and monitor.sh test the app itself, so a failure
+    # points at the app rather than at Caddy/TLS/DNS.
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # Chroma load takes 2-3 min on Fly's dedicated cores; allow more on 2 shared vCPU.
+      start_period: 480s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - asclepius
+
+volumes:
+  caddy_data:
+  caddy_config:

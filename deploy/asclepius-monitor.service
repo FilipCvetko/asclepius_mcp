@@ -1,0 +1,10 @@
+[Unit]
+Description=Asclepius MCP health monitor
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/asclepius/src/deploy/monitor.sh
+# monitor.sh exits 1 on a failed check; that is expected signal, not a unit fault.
+SuccessExitStatus=0 1
