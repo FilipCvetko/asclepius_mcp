@@ -49,8 +49,15 @@ if [ "$(free_gb)" -lt "$MIN_FREE_GB" ]; then
   log "only $(free_gb)G free — pruning build cache"
   prune_cache
 fi
+# Escalate before giving up: most cache is `Shared: true` with the live image and
+# so is un-prunable, which means a normal prune can free nothing. Losing the cache
+# (slow next build) beats refusing to ship a release.
+if [ "$(free_gb)" -lt "$MIN_FREE_GB" ]; then
+  log "still $(free_gb)G free — dropping ALL build cache (next build will be slow)"
+  docker builder prune -af >/dev/null 2>&1 || true
+fi
 [ "$(free_gb)" -ge "$MIN_FREE_GB" ] \
-  || { log "ABORT: only $(free_gb)G free, need ${MIN_FREE_GB}G"; exit 1; }
+  || { log "ABORT: only $(free_gb)G free, need ${MIN_FREE_GB}G — free space manually"; exit 1; }
 
 # --- rollback anchor ------------------------------------------------------
 ROLLBACK=0
